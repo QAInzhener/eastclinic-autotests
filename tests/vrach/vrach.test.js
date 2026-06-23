@@ -187,6 +187,36 @@ test('Личная страница врача — блок наград, дол
   }
 });
 
+test('Личная страница врача — аккордеоны: Врач о себе / С чем поможет / Награды / Образование', async ({ page }) => {
+  test.setTimeout(120000);
+  await gotoDoctor25(page);
+
+  const BLOCKS = ['Врач о себе', 'С чем поможет', 'Награды', 'Образование'];
+
+  for (const title of BLOCKS) {
+    const details = page.locator('details.accordion-container').filter({ hasText: title }).first();
+
+    if (!await details.isVisible()) {
+      console.log(`[test] "${title}" — блок отсутствует (не заполнен в админке)`);
+      continue;
+    }
+
+    // Заголовок аккордеона виден
+    await expect(details.locator('summary .accordion-text').first()).toBeVisible();
+
+    // Кликаем — блок раскрывается
+    await details.locator('summary').click();
+    await page.waitForTimeout(300);
+
+    // Содержимое появляется и непустое
+    const content = details.locator('.accordion-content').first();
+    await expect(content).toBeVisible({ timeout: 3000 });
+    const contentText = (await content.textContent()).trim();
+    expect(contentText.length, `Содержимое блока "${title}" не должно быть пустым`).toBeGreaterThan(0);
+    console.log(`[test] ✓ "${title}" — открылся, ${contentText.length} символов`);
+  }
+});
+
 test('Личная страница врача — кнопка «еще»: клик раскрывает дополнительные специальности', async ({ page }) => {
   test.setTimeout(120000);
   await gotoDoctor25(page);
