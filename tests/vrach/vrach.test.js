@@ -91,10 +91,9 @@ test('Личная страница врача — счётчик отзывов
   }
 
   await reviewLink.click();
-  await page.waitForTimeout(1000);
 
-  // URL получает якорь #reviews
-  expect(page.url(), 'URL должен содержать #reviews').toContain('#reviews');
+  // URL получает якорь #reviews (ждём обновления)
+  await expect(page).toHaveURL(/#reviews/, { timeout: 5000 });
 
   // Секция отзывов прокрутилась в область видимости
   await expect(page.locator('div#reviews').first()).toBeVisible({ timeout: 5000 });
@@ -564,6 +563,148 @@ test('Личная страница врача — блок «Образован
   const transformFinal = await chevron.evaluate(el => window.getComputedStyle(el).transform);
   expect(transformFinal, 'Шеврон должен смотреть вниз').not.toContain('matrix(-1');
   console.log('[test] ✓ Шеврон вверх → закрыл блок');
+});
+
+test('Личная страница врача — отзывы: фильтры «По типам», «По площадкам» и кнопка «Показать ещё»', async ({ page }) => {
+  test.setTimeout(120000);
+  await gotoDoctor25(page);
+
+  const reviewsSection = page.locator('#reviews');
+  if (!await reviewsSection.isVisible({ timeout: 3000 })) {
+    console.log('[test] Блок #reviews не найден — проверка пропущена');
+    return;
+  }
+
+  await reviewsSection.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(800);
+
+  const countReviews = () => page.locator('#reviews .reviews .review-container').count();
+  const initialCount = await countReviews();
+
+  if (initialCount === 0) {
+    console.log('[test] Отзывов нет — проверка пропущена');
+    return;
+  }
+  console.log(`[test] Отзывов на странице: ${initialCount}`);
+
+  // === ФИЛЬТР ПО ТИПАМ ===
+  const typeFilter = page.locator('#reviews span.filter-current-type-text').first();
+
+  await typeFilter.click();
+  await page.waitForTimeout(400);
+  const highOpt = page.locator('#reviews .popup-option').filter({ hasText: 'С высокой оценкой' }).first();
+  await expect(highOpt, 'Опция «С высокой оценкой» должна быть видна').toBeVisible({ timeout: 3000 });
+  await highOpt.click();
+  await page.waitForTimeout(1000);
+  expect((await typeFilter.textContent()).trim(), 'Фильтр типа должен переключиться').toBe('С высокой оценкой');
+  console.log(`[test] ✓ Тип «С высокой оценкой»: ${await countReviews()} отзывов`);
+
+  await typeFilter.click();
+  await page.waitForTimeout(400);
+  await page.locator('#reviews .popup-option').filter({ hasText: 'С низкой оценкой' }).first().click();
+  await page.waitForTimeout(1000);
+  expect((await typeFilter.textContent()).trim()).toBe('С низкой оценкой');
+  console.log(`[test] ✓ Тип «С низкой оценкой»: ${await countReviews()} отзывов`);
+
+  // Сброс типа
+  await typeFilter.click();
+  await page.waitForTimeout(400);
+  await page.locator('#reviews .popup-option').filter({ hasText: 'Новые' }).first().click();
+  await page.waitForTimeout(800);
+  expect((await typeFilter.textContent()).trim()).toBe('Новые');
+  console.log('[test] ✓ Тип сброшен → «Новые»');
+
+  // === ФИЛЬТР ПО ПЛОЩАДКАМ ===
+  const platFilter = page.locator('#reviews span.filter-current-platform-text').first();
+
+  await platFilter.click();
+  await page.waitForTimeout(400);
+
+  // Находим площадку с отзывами, отличную от «Со всех площадок»
+  const allOpts = page.locator('#reviews .popup-option');
+  const optCount = await allOpts.count();
+  expect(optCount, 'Должно быть несколько площадок').toBeGreaterThan(1);
+
+  let selectedPlatName = '';
+  for (let i = 1; i < optCount; i++) {
+    const opt = allOpts.nth(i);
+    const txt = (await opt.textContent()).trim();
+    const num = parseInt(txt.match(/(\d+)\s*отзыв/)?.[1] || '0');
+    if (num > 0) {
+      selectedPlatName = txt.split('\n')[0].trim();
+      await opt.click();
+      break;
+    }
+  }
+
+  if (!selectedPlatName) {
+    console.log('[test] Не нашли площадку с отзывами — пропускаем фильтр площадок');
+    await page.keyboard.press('Escape');
+  } else {
+    await page.waitForTimeout(1000);
+    const newPlatLabel = (await platFilter.textContent()).trim();
+    expect(newPlatLabel, 'Фильтр площадки должен переключиться').not.toBe('Со всех площадок');
+    const countAfterPlat = await countReviews();
+    expect(countAfterPlat, 'После фильтра по площадке видны отзывы').toBeGreaterThan(0);
+    expect(countAfterPlat, 'Фильтр площадки должен изменить показываемые отзывы').toBeLessThanOrEqual(initialCount);
+    console.log(`[test] ✓ Площадка «${selectedPlatName}»: ${countAfterPlat} отзывов`);
+
+    // Сброс площадки
+    await platFilter.click();
+    await page.waitForTimeout(400);
+    await page.locator('#reviews .popup-option').filter({ hasText: 'Со всех площадок' }).first().click();
+    await page.waitForTimeout(800);
+    expect((await platFilter.textContent()).trim()).toContain('Со всех площадок');
+    console.log('[test] ✓ Площадка сброшена → «Со всех площадок»');
+  }
+
+  // === КНОПКА «ПОКАЗАТЬ ЕЩЁ» ===
+  const showMoreBtn = page.locator('#reviews button.show-more').first();
+  if (!await showMoreBtn.isVisible({ timeout: 2000 })) {
+    console.log('[test] Кнопка «Показать ещё» не видна — все отзывы уже показаны');
+    return;
+  }
+
+  const btnText1 = (await showMoreBtn.textContent()).trim();
+  const firstBatch = parseInt(btnText1.match(/\d+/)?.[0] || '0');
+  expect(firstBatch, 'Первая загрузка должна показывать ≤8 отзывов').toBeLessThanOrEqual(8);
+  console.log(`[test] Кнопка 1-й клик: "${btnText1}"`);
+
+  // 1-й клик — ждём смены текста (count может не измениться)
+  await showMoreBtn.click();
+  await page.waitForFunction(
+    (prev) => {
+      const b = document.querySelector('#reviews button.show-more');
+      return !b || b.textContent.trim() !== prev;
+    },
+    btnText1,
+    { timeout: 8000 }
+  );
+  const afterFirst = await countReviews();
+  const btnText2 = await showMoreBtn.isVisible()
+    ? (await showMoreBtn.textContent()).trim()
+    : null;
+  console.log(`[test] После 1-го клика: ${afterFirst} отзывов | кнопка: "${btnText2 || 'скрыта'}"`);
+
+  if (!btnText2 || !await showMoreBtn.isVisible()) {
+    console.log('[test] ✓ Все отзывы показаны после 1-го клика');
+    return;
+  }
+
+  const secondBatch = parseInt(btnText2.match(/\d+/)?.[0] || '0');
+  expect(secondBatch, '2-я и последующие загрузки должны показывать 10 отзывов').toBe(10);
+
+  // 2-й клик — ждём реального добавления 10 отзывов в DOM
+  const beforeSecond = await countReviews();
+  await showMoreBtn.click();
+  await page.waitForFunction(
+    (n) => document.querySelectorAll('#reviews .reviews .review-container').length > n,
+    beforeSecond,
+    { timeout: 8000 }
+  );
+  const afterSecond = await countReviews();
+  expect(afterSecond - beforeSecond, '2-й клик должен добавить ровно 10 отзывов').toBe(10);
+  console.log(`[test] ✓ После 2-го клика: ${afterSecond} отзывов (+10)`);
 });
 
 test('Личная страница врача — кнопка «еще»: клик раскрывает дополнительные специальности', async ({ page }) => {
