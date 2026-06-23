@@ -434,6 +434,138 @@ test('Личная страница врача — блок «Награды»: 
   console.log('[test] ✓ Шеврон вверх → закрыл блок');
 });
 
+test('Личная страница врача — блок «Образование»: расположен после «Награды», шеврон, фотографии, навигация, плеер, Свернуть', async ({ page }) => {
+  test.setTimeout(120000);
+  await gotoDoctor25(page);
+
+  const nagrady = page.locator('details.accordion-container').filter({ hasText: 'Награды' }).first();
+  const details  = page.locator('details.accordion-container').filter({ hasText: 'Образование' }).first();
+
+  if (!await details.isVisible()) {
+    console.log('[test] Блок "Образование" отсутствует — проверка пропущена');
+    return;
+  }
+
+  // «Образование» идёт после «Награды» в DOM
+  if (await nagrady.isVisible()) {
+    const isAfter = await page.evaluate(() => {
+      const all = [...document.querySelectorAll('details.accordion-container')];
+      const idxA = all.findIndex(d => d.innerText.includes('Награды'));
+      const idxB = all.findIndex(d => d.innerText.includes('Образование'));
+      return idxB > idxA;
+    });
+    expect(isAfter, '«Образование» должен быть ниже «Награды»').toBe(true);
+    console.log('[test] ✓ Порядок: «Награды» → «Образование»');
+  }
+
+  const chevron = details.locator('summary svg.chevron').first();
+
+  // Закрытый шеврон смотрит вниз
+  const transformClosed = await chevron.evaluate(el => window.getComputedStyle(el).transform);
+  expect(transformClosed, 'Закрытый шеврон не должен быть повёрнут').not.toContain('matrix(-1');
+  console.log('[test] Шеврон вниз (закрыт)');
+
+  // Клик — открывается, шеврон поворачивается вверх
+  await details.locator('summary').click();
+  await page.waitForTimeout(500);
+  expect(await details.evaluate(d => d.open), 'Блок должен открыться').toBe(true);
+  const transformOpen = await chevron.evaluate(el => window.getComputedStyle(el).transform);
+  expect(transformOpen, 'Открытый шеврон должен быть повёрнут на 180°').toContain('matrix(-1');
+  console.log('[test] ✓ Шеврон вверх (открыт)');
+
+  // Фотографии дипломов
+  const slides = details.locator('.slide-gallery__item');
+  const slideCount = await slides.count();
+  console.log(`[test] Фотографий дипломов: ${slideCount}`);
+
+  if (slideCount > 0) {
+    await expect(slides.first().locator('img').first()).toBeVisible({ timeout: 3000 });
+    console.log('[test] ✓ Первая фотография видна');
+
+    // Навигация (только если дипломов > 4)
+    if (slideCount > 4) {
+      const rightBtn = details.locator('.chevron-container.right').first();
+      const leftBtn  = details.locator('.chevron-container.left').first();
+
+      await expect(rightBtn).toBeVisible({ timeout: 3000 });
+      const rightSize = await rightBtn.evaluate(el => {
+        const r = el.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height) };
+      });
+      expect(rightSize.w, 'Правая кнопка: ширина 48px').toBe(48);
+      expect(rightSize.h, 'Правая кнопка: высота 48px').toBe(48);
+
+      expect(
+        await leftBtn.evaluate(el => el.classList.contains('hidden')),
+        'Левая кнопка должна быть скрыта в начале'
+      ).toBe(true);
+
+      await rightBtn.click();
+      await page.waitForTimeout(600);
+      expect(
+        await leftBtn.evaluate(el => el.classList.contains('hidden')),
+        'После прокрутки вправо левая кнопка должна появиться'
+      ).toBe(false);
+      const leftSize = await leftBtn.evaluate(el => {
+        const r = el.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height) };
+      });
+      expect(leftSize.w, 'Левая кнопка: ширина 48px').toBe(48);
+      expect(leftSize.h, 'Левая кнопка: высота 48px').toBe(48);
+      console.log('[test] ✓ Прокрутка → : левая кнопка (48×48) появилась');
+
+      await leftBtn.click();
+      await page.waitForTimeout(600);
+      expect(
+        await leftBtn.evaluate(el => el.classList.contains('hidden')),
+        'После возврата в начало левая кнопка должна скрыться'
+      ).toBe(true);
+      console.log('[test] ✓ Прокрутка ← : левая кнопка скрылась');
+    } else {
+      console.log(`[test] Дипломов ${slideCount} (≤4) — кнопки навигации не нужны`);
+    }
+
+    // Клик на фото → плеер открывается
+    await slides.first().scrollIntoViewIfNeeded();
+    await slides.first().click();
+    await page.waitForTimeout(1000);
+
+    const overlay = page.locator('div.stories__overlay.active').first();
+    await expect(overlay, 'Плеер должен открыться').toBeVisible({ timeout: 5000 });
+    console.log('[test] ✓ Плеер открылся');
+
+    // Кнопка закрытия плеера
+    const closeBtn = page.locator('div.stories__play-area__close').first();
+    await expect(closeBtn, 'Кнопка закрытия плеера должна быть видна').toBeVisible();
+    await closeBtn.click();
+    await page.waitForTimeout(600);
+    await expect(overlay, 'Плеер должен закрыться').not.toBeVisible({ timeout: 3000 });
+    console.log('[test] ✓ Плеер закрылся');
+  }
+
+  // Кнопка «Свернуть» закрывает блок
+  const svernBtn = details.locator('button.accordion-button').first();
+  await expect(svernBtn, 'Кнопка «Свернуть» должна быть видна').toBeVisible({ timeout: 3000 });
+  await svernBtn.scrollIntoViewIfNeeded();
+  await svernBtn.click();
+  await page.waitForTimeout(500);
+  expect(await details.evaluate(d => d.open), 'Блок должен закрыться после «Свернуть»').toBe(false);
+  const transformAfterSvern = await chevron.evaluate(el => window.getComputedStyle(el).transform);
+  expect(transformAfterSvern, 'Шеврон должен смотреть вниз после «Свернуть»').not.toContain('matrix(-1');
+  console.log('[test] ✓ «Свернуть» закрыла блок, шеврон вниз');
+
+  // Открываем снова и закрываем шевроном
+  await details.locator('summary').click();
+  await page.waitForTimeout(500);
+  expect(await details.evaluate(d => d.open), 'Блок должен открыться').toBe(true);
+  await details.locator('summary').click();
+  await page.waitForTimeout(500);
+  expect(await details.evaluate(d => d.open), 'Блок должен закрыться').toBe(false);
+  const transformFinal = await chevron.evaluate(el => window.getComputedStyle(el).transform);
+  expect(transformFinal, 'Шеврон должен смотреть вниз').not.toContain('matrix(-1');
+  console.log('[test] ✓ Шеврон вверх → закрыл блок');
+});
+
 test('Личная страница врача — кнопка «еще»: клик раскрывает дополнительные специальности', async ({ page }) => {
   test.setTimeout(120000);
   await gotoDoctor25(page);
