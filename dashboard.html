@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Панель тестирования — Ист Клиника</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f0f2f5;
+  --surface: #ffffff;
+  --surface-hover: #f8f9fa;
+  --header-bg: #ffffff;
+  --header-shadow: 0 2px 4px rgba(0,0,0,.1);
+  --text: #1f1f1f;
+  --text-muted: #888;
+  --border: #f0f0f0;
+  --run-all-bg: #1565c0;
+  --run-all-hover: #0d47a1;
+  --run-file-bg: #e8eaf6;
+  --run-file-color: #283593;
+  --run-file-hover: #c5cae9;
+  --run-test-bg: #e8f5e9;
+  --run-test-color: #2e7d32;
+  --run-test-hover: #c8e6c9;
+  --log-bg: #1a1a2e;
+  --log-text: #a5d6a7;
+  --btn-dis-bg: #f1f3f4;
+  --btn-dis-color: #aaa;
+}
+.dark {
+  --bg: #121212;
+  --surface: #1e1e1e;
+  --surface-hover: #2a2a2a;
+  --header-bg: #1a1a2e;
+  --header-shadow: 0 2px 4px rgba(0,0,0,.5);
+  --text: #e0e0e0;
+  --text-muted: #777;
+  --border: #333;
+  --run-all-bg: #1976d2;
+  --run-all-hover: #1565c0;
+  --run-file-bg: #283593;
+  --run-file-color: #c5cae9;
+  --run-file-hover: #303f9f;
+  --run-test-bg: #1b5e20;
+  --run-test-color: #a5d6a7;
+  --run-test-hover: #2e7d32;
+  --log-bg: #0a0a1a;
+  --log-text: #a5d6a7;
+  --btn-dis-bg: #333;
+  --btn-dis-color: #666;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  transition: background .25s, color .25s;
+}
+
+header {
+  background: var(--header-bg);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--header-shadow);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  transition: background .25s, box-shadow .25s;
+}
+.clinic-logo { display: block; height: 26px; width: auto; }
+.header-title {
+  font-family: 'Roboto', sans-serif;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 20px;
+  color: rgb(38, 38, 51);
+  flex: 1;
+  text-align: center;
+}
+.dark .header-title { color: rgb(46, 125, 50); }
+
+.theme-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .2s, border-color .2s, color .25s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.theme-btn:hover { background: var(--surface-hover); }
+
+.wrap { max-width: 960px; margin: 24px auto; padding: 0 16px 40px; }
+.topbar {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  position: relative;
+}
+.topbar.pinned {
+  position: sticky;
+  top: 46px;
+  z-index: 99;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 3px 8px rgba(0,0,0,.15);
+}
+.pin-btn {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: background .2s, border-color .2s, color .2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.pin-btn:hover { background: var(--surface-hover); color: var(--text); }
+.pin-icon { display: inline-block; transition: transform .25s; }
+.pin-btn.active .pin-icon { transform: rotate(-45deg); }
+.stats-row { display: flex; gap: 20px; align-items: center; flex: 1; flex-wrap: wrap; }
+.stat { font-size: 14px; display: flex; align-items: center; gap: 5px; }
+.stat b { font-size: 20px; }
+.c-pass { color: #2e7d32; }
+.c-fail { color: #c62828; }
+.c-skip { color: #e65100; }
+.c-total { color: #1565c0; }
+.run-time { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+
+.env-toggle {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--bg);
+  border-radius: 9px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+.env-btn {
+  font-size: 13px;
+  padding: 7px 14px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-muted);
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.env-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0,0,0,.15);
+}
+.env-btn:hover:not(.active):not(:disabled) { color: var(--text); }
+.env-btn:disabled { cursor: not-allowed; opacity: .5; }
+
+#runAllBtn {
+  background: var(--run-all-bg);
+  color: white;
+  padding: 10px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background .2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+#runAllBtn:hover:not(:disabled) { background: var(--run-all-hover); }
+#runAllBtn:disabled { background: var(--btn-dis-bg); color: var(--btn-dis-color); cursor: not-allowed; }
+
+#stopBtn {
+  background: #c62828;
+  color: white;
+  padding: 10px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background .2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+#stopBtn:hover:not(:disabled) { background: #8e0000; }
+#stopBtn:disabled { background: var(--btn-dis-bg); color: var(--btn-dis-color); cursor: not-allowed; }
+
+.status-pill { font-size: 13px; padding: 4px 12px; border-radius: 12px; font-weight: 500; }
+.pill-idle    { background: #e8f5e9; color: #2e7d32; }
+.pill-running { background: #e3f2fd; color: #1565c0; }
+.pill-fail    { background: #ffebee; color: #c62828; }
+.dark .pill-idle    { background: #1b5e20; color: #a5d6a7; }
+.dark .pill-running { background: #0d47a1; color: #90caf9; }
+.dark .pill-fail    { background: #7f0000; color: #ef9a9a; }
+
+.suite { background: var(--surface); border-radius: 10px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.1); overflow: hidden; transition: opacity .15s; }
+.suite.dragging { opacity: .4; }
+.suite.drag-over-top    { box-shadow: 0 -3px 0 #1976d2, 0 1px 3px rgba(0,0,0,.1); }
+.suite.drag-over-bottom { box-shadow: 0 3px 0 #1976d2, 0 1px 3px rgba(0,0,0,.1); }
+.suite-hdr { padding: 14px 18px; display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.suite-name { user-select: text; }
+.suite-hdr:hover { background: var(--surface-hover); }
+.suite-icon { font-size: 11px; color: var(--text-muted); }
+.drag-handle { font-size: 15px; color: var(--text-muted); opacity: .3; cursor: grab; padding-right: 2px; flex-shrink: 0; line-height: 1; }
+.suite-hdr:hover .drag-handle { opacity: .7; }
+.drag-handle:active { cursor: grabbing; }
+.suite-name { font-weight: 600; font-size: 15px; flex: 1; }
+.suite-badge { font-size: 13px; font-weight: 600; border-radius: 10px; padding: 2px 10px; }
+.bg-pass { background: #e8f5e9; color: #2e7d32; }
+.bg-fail { background: #ffebee; color: #c62828; }
+.bg-none { background: #f1f3f4; color: #5f6368; }
+.dark .bg-pass { background: #1b5e20; color: #a5d6a7; }
+.dark .bg-fail { background: #7f0000; color: #ef9a9a; }
+.dark .bg-none { background: #333; color: #9e9e9e; }
+
+.run-file-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  background: var(--run-file-bg);
+  color: var(--run-file-color);
+  border-radius: 6px;
+  margin-left: 4px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .2s;
+}
+.run-file-btn:hover:not(:disabled) { background: var(--run-file-hover); }
+.run-file-btn:disabled { background: var(--btn-dis-bg); color: var(--btn-dis-color); cursor: not-allowed; }
+
+.suite-body { padding: 4px 18px 12px; display: none; border-top: 1px solid var(--border); }
+.suite-body.open { display: block; }
+
+.file-subhdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0 3px;
+  border-bottom: 1px dashed var(--border);
+  margin-bottom: 2px;
+}
+.file-subhdr:first-child { padding-top: 4px; }
+.file-subname {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.test-row { display: flex; align-items: flex-start; gap: 8px; padding: 5px 6px; border-radius: 6px; }
+.test-row:hover { background: var(--surface-hover); }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.dot-pass    { background: #43a047; }
+.dot-fail    { background: #e53935; }
+.dot-skip    { background: #fb8c00; }
+.dot-unknown { background: #bdbdbd; }
+.test-info { flex: 1; min-width: 0; }
+.test-name { font-size: 13.5px; line-height: 1.4; word-break: break-word; }
+.test-dur  { font-size: 11px; color: var(--text-muted); }
+.test-err  {
+  font-size: 11.5px;
+  color: #c62828;
+  background: #fff8f8;
+  border-left: 3px solid #ef9a9a;
+  padding: 4px 8px;
+  margin-top: 4px;
+  border-radius: 0 4px 4px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.dark .test-err { background: #2a1515; }
+
+.run-test-btn {
+  font-size: 11px;
+  padding: 3px 9px;
+  background: var(--run-test-bg);
+  color: var(--run-test-color);
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
+  opacity: 0;
+  transition: opacity .15s, background .2s;
+}
+.test-row:hover .run-test-btn { opacity: 1; }
+.run-test-btn:hover:not(:disabled) { background: var(--run-test-hover); }
+.run-test-btn:disabled { background: var(--btn-dis-bg); color: var(--btn-dis-color); cursor: not-allowed; opacity: 0.4; }
+.test-drag-handle { opacity: 0; cursor: grab; flex-shrink: 0; color: var(--text-muted); font-size: 12px; line-height: 1; user-select: none; }
+.test-row:hover .test-drag-handle { opacity: 0.5; }
+.test-row.dragging-test { opacity: .35; }
+.test-row.test-drag-over-top    { box-shadow: 0 -2px 0 #1976d2; }
+.test-row.test-drag-over-bottom { box-shadow: 0  2px 0 #1976d2; }
+
+.report-btn {
+  font-size: 13px;
+  padding: 3px 9px;
+  background: #ffebee;
+  color: #c62828;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
+  transition: background .2s;
+}
+.report-btn:hover { background: #ffcdd2; }
+.dark .report-btn { background: #7f0000; color: #ef9a9a; }
+.dark .report-btn:hover { background: #a30000; }
+
+.log-wrap {
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  overflow: hidden;
+  margin-top: 16px;
+}
+.log-wrap.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  border-radius: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+.log-wrap.fullscreen #log {
+  flex: 1;
+  height: auto;
+}
+.log-header {
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.log-header:hover { background: var(--surface-hover); }
+.log-title { font-weight: 600; font-size: 14px; flex: 1; cursor: pointer; padding: 2px 0; }
+.log-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.log-action-btn {
+  font-size: 12px;
+  color: #1565c0;
+  background: none;
+  border: 1px solid #c5cae9;
+  border-radius: 5px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.log-action-btn:hover { background: #e8eaf6; }
+.dark .log-action-btn { color: #90caf9; border-color: #283593; }
+.dark .log-action-btn:hover { background: #1a237e; }
+#log {
+  background: var(--log-bg);
+  color: var(--log-text);
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 12px;
+  padding: 12px 16px;
+  height: 260px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  display: none;
+}
+#log.open { display: block; }
+
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty { text-align: center; padding: 48px 0; color: var(--text-muted); }
+.empty-icon { font-size: 48px; }
+.empty-text { font-size: 16px; margin-top: 12px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<header>
+  <svg class="clinic-logo" xmlns="http://www.w3.org/2000/svg" width="210" height="28" viewBox="0 0 210 28" fill="none">
+    <path d="M3.47039 18.8731L13.592 6.36523H17.0661V23.5149H13.592V11.0418L3.47039 23.5149H0V6.36523H3.47039V18.8731Z" fill="#2D7FF9"/>
+    <path d="M38.7204 12.6015H35.1034C34.7152 11.5634 33.9937 10.6667 33.0403 10.0374C32.0205 9.35772 30.7978 9.00581 29.5515 9.0333C28.7271 9.00373 27.9053 9.13947 27.1399 9.43164C26.3746 9.72381 25.6829 10.1658 25.11 10.7288C24.5474 11.2895 24.1075 11.9503 23.8157 12.6731C23.5238 13.3958 23.3858 14.1662 23.4097 14.9398C23.3678 16.5002 23.9791 18.0129 25.11 19.1473C25.6806 19.7134 26.3718 20.1577 27.1376 20.4507C27.9035 20.7436 28.7264 20.8785 29.5515 20.8462C30.7968 20.867 32.0173 20.5157 33.0403 19.8421C34.0289 19.2019 34.7569 18.2604 35.1034 17.1738H38.7204C38.3145 19.115 37.1887 20.8542 35.5469 22.0762C33.8372 23.367 31.7035 24.0471 29.5186 23.9975C26.6895 23.9975 24.3869 23.1266 22.6108 21.3848C21.7359 20.5328 21.0491 19.524 20.5904 18.4174C20.1316 17.3107 19.9103 16.1285 19.9393 14.9398C19.9038 13.748 20.1218 12.5616 20.5801 11.4514C21.038 10.3412 21.7278 9.32974 22.6071 8.4774C24.393 6.74715 26.6956 5.88087 29.5149 5.87855C31.6955 5.82896 33.8269 6.49682 35.5469 7.76862C37.1855 8.96346 38.3127 10.6801 38.7204 12.6015Z" fill="#2D7FF9"/>
+    <path d="M62.4189 5.90625C64.5151 5.90625 66.1654 6.55365 67.3698 7.84844C68.5743 9.14323 69.1777 10.8515 69.1801 12.9732V23.5145H65.7061V13.3276C65.7061 12.0096 65.347 10.9673 64.6287 10.2006C64.2584 9.81785 63.8038 9.51704 63.2971 9.3195C62.7905 9.12195 62.2442 9.03251 61.697 9.05753C61.0995 9.05945 60.5092 9.18225 59.9658 9.41772C59.4223 9.65318 58.9381 9.9959 58.5454 10.423C57.6439 11.324 57.1932 12.6628 57.1932 14.4394V23.5145H53.7228V13.3276C53.7228 12.0108 53.3564 10.9684 52.6454 10.2006C52.2713 9.8111 51.8087 9.50735 51.2925 9.31233C50.7764 9.11731 50.2202 9.03612 49.6661 9.0749C49.0254 9.07595 48.3945 9.22447 47.8276 9.50769C47.2608 9.79092 46.775 10.2004 46.4119 10.7009C45.5485 11.8775 45.1124 13.2885 45.1696 14.7208V23.5145H41.6992V8.82474H45.1696C46.4131 6.87908 48.1917 5.90625 50.5053 5.90625C53.1634 5.90625 55.0763 7.01574 56.2441 9.23472H56.354C57.6293 7.01574 59.6509 5.90625 62.4189 5.90625Z" fill="#2D7FF9"/>
+    <path d="M65.7472 0H45.207V3.20339H65.7472V0Z" fill="url(#logo-grad0)"/>
+    <path d="M65.7472 0H45.207V3.20339H65.7472V0Z" fill="url(#logo-grad1)"/>
+    <path d="M101.299 10.7391L107.331 23.6604H110.996L102.835 6.51074H99.4267L91.3242 23.6604H95.0878L101.153 10.7391H101.299Z" fill="#01B3FF"/>
+    <path d="M115.234 18.8867L125.355 6.37891H128.844V23.5285H125.374V11.0589L115.234 23.5285H111.76V6.38238H115.234V18.8867Z" fill="#01B3FF"/>
+    <path d="M156.169 18.8867L166.291 6.37891H169.78V23.5285H166.309V11.0589L156.169 23.5285H152.695V6.38238H156.169V18.8867Z" fill="#01B3FF"/>
+    <path d="M145.704 13.3032V6.51074H149.174V23.6604H145.704V16.4892H135.56V23.6604H132.09V6.51074H135.56V13.3032H145.704Z" fill="#01B3FF"/>
+    <path d="M189.704 23.6604H185.358L179.399 16.4545H176.196V23.6604H172.715V6.51074H176.196V13.3727H179.667L185.431 6.51074H189.484L182.521 14.8945L189.704 23.6604Z" fill="#01B3FF"/>
+    <path d="M90.702 23.6604H86.3558L80.3971 16.4545H77.1943V23.6604H73.7129V6.51074H77.1943V13.3727H80.6647L86.4291 6.51074H90.4822L83.5194 14.8945L90.702 23.6604Z" fill="#01B3FF"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M204.551 19.8387L206.335 23.6602H210L201.839 6.51074H198.431L190.328 23.6602H194.092L195.885 19.8387H204.551ZM203.081 16.6897L200.303 10.7391H200.157L197.364 16.6897H203.081Z" fill="#01B3FF"/>
+    <defs>
+      <linearGradient id="logo-grad0" x1="45.6939" y1="3.15067" x2="65.7084" y2="3.15067" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#1F59EE"/>
+        <stop offset="0.479167" stop-color="#00B3FF"/>
+      </linearGradient>
+      <linearGradient id="logo-grad1" x1="45.6939" y1="3.15067" x2="65.7084" y2="3.15067" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#2D7FF9"/>
+        <stop offset="0.53125" stop-color="#00B2FF"/>
+      </linearGradient>
+    </defs>
+  </svg>
+  <span class="header-title">Панель автотестирования</span>
+  <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">&#9790; Тёмная тема</button>
+</header>
+
+<div class="wrap">
+  <div class="topbar">
+    <div class="env-toggle" id="envToggle">
+      <button class="env-btn" data-env="prod" onclick="selectEnv('prod')">eastclinic.ru</button>
+      <button class="env-btn" data-env="dev" onclick="selectEnv('dev')">dev1.eastclinic.local</button>
+    </div>
+    <button id="runAllBtn" onclick="runTests()">&#9654; Запустить все тесты</button>
+    <button id="stopBtn" onclick="stopTests()" style="display:none">&#9632; Остановить</button>
+    <div class="stats-row">
+      <span id="statusPill" class="status-pill pill-idle">Загрузка...</span>
+      <span id="statsText"></span>
+    </div>
+    <span id="runTime" class="run-time"></span>
+    <button class="pin-btn" id="pinBtn" onclick="togglePin()" title="Закрепить панель управления"><span class="pin-icon">&#128204;</span> Закрепить</button>
+  </div>
+  <div id="suitesContainer"></div>
+  <div class="log-wrap" id="logWrap">
+    <div class="log-header">
+      <span class="log-title" id="logTitle" onclick="toggleLog()">Лог последнего запуска</span>
+      <div class="log-btns">
+        <button class="log-action-btn" id="logFsBtn" onclick="toggleLogFullscreen()">&#x26F6; На весь экран</button>
+        <button class="log-action-btn" id="logToggleBtn" onclick="toggleLog()">&#9650; Свернуть</button>
+      </div>
+    </div>
+    <div id="log" class="open"></div>
+  </div>
+</div>
+
+<script>
+// ---- Theme ----
+var darkMode = localStorage.getItem('theme') === 'dark';
+function applyTheme() {
+  document.documentElement.classList.toggle('dark', darkMode);
+  var btn = document.getElementById('themeBtn');
+  if (btn) btn.innerHTML = darkMode ? '&#9728; Светлая тема' : '&#9790; Тёмная тема';
+}
+function toggleTheme() {
+  darkMode = !darkMode;
+  localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  applyTheme();
+}
+applyTheme();
+
+// ---- Pin topbar ----
+var topbarPinned = localStorage.getItem('topbarPinned') === 'true';
+function applyPin() {
+  var topbar = document.querySelector('.topbar');
+  var btn = document.getElementById('pinBtn');
+  if (!topbar || !btn) return;
+  topbar.classList.toggle('pinned', topbarPinned);
+  btn.classList.toggle('active', topbarPinned);
+  btn.innerHTML = '<span class="pin-icon">&#128204;</span> ' + (topbarPinned ? 'Открепить' : 'Закрепить');
+}
+function togglePin() {
+  topbarPinned = !topbarPinned;
+  localStorage.setItem('topbarPinned', topbarPinned);
+  applyPin();
+}
+applyPin();
+
+// ---- State ----
+var running = false;
+// ============================================================
+// НАЗВАНИЯ БЛОКОВ В ПАНЕЛИ
+// Ключ — имя файла или папки (как оно приходит из результатов).
+// Значение — название, которое будет показано в панели.
+// ============================================================
+var PANEL_NAMES = {
+  'header':                        'Шапка сайта',
+  'homepage.test.js':              'Главная страница',
+  'forms-main.test.js':            'Формы: Главная',
+  'forms-mobile.test.js':          'Форма: Мобильная версия',
+  'forms-appointment.test.js':     'Формы: Запись на приём',
+  'forms-doctors-clinic.test.js':  'Формы: Врачи и клиника',
+  'forms-vacancy.test.js':         'Формы: Вакансии',
+  'explore-forms.test.js':         'Формы: Исследование',
+  'search':                        'Поле Поиск',
+  'vrach':                         'Личная страница врача',
+  'otzyvy':                        'Форма: Отзывы',
+  'sertifikaty':                   'Форма: Подарочный сертификат',
+  'vrachi/ai-doctor-picker.test.js': 'Форма: ИИ подборщик врача',
+  'vrachi':                          'Форма: ИИ подборщик врача',
+};
+// ============================================================
+
+var logOpen = true;
+var logFullscreen = false;
+var testRegistry = []; // { file, grep }
+var selectedEnv = localStorage.getItem('testEnv') || 'prod';
+
+// ---- Environment ----
+function applyEnvButtons() {
+  document.querySelectorAll('.env-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.env === selectedEnv);
+  });
+}
+function selectEnv(env) {
+  if (running || env === selectedEnv) return;
+  selectedEnv = env;
+  localStorage.setItem('testEnv', env);
+  applyEnvButtons();
+  loadResults();
+  loadLog();
+}
+applyEnvButtons();
+loadResults();
+loadLog();
+
+// ---- Helpers ----
+function toggleLog() {
+  logOpen = !logOpen;
+  document.getElementById('log').classList.toggle('open', logOpen);
+  document.getElementById('logToggleBtn').innerHTML = logOpen ? '&#9650; Свернуть' : '&#9660; Показать';
+}
+
+function toggleLogFullscreen() {
+  logFullscreen = !logFullscreen;
+  var wrap = document.getElementById('logWrap');
+  wrap.classList.toggle('fullscreen', logFullscreen);
+  document.getElementById('logFsBtn').innerHTML = logFullscreen ? '&#x2715; Выйти' : '&#x26F6; На весь экран';
+  if (logFullscreen && !logOpen) {
+    logOpen = true;
+    document.getElementById('log').classList.add('open');
+    document.getElementById('logToggleBtn').innerHTML = '&#9650; Свернуть';
+  }
+  var logEl = document.getElementById('log');
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function fmt(ms) {
+  if (!ms) return '';
+  if (ms < 1000) return ms + ' мс';
+  if (ms < 60000) return (ms / 1000).toFixed(1) + ' с';
+  return Math.floor(ms / 60000) + ' м ' + Math.floor((ms % 60000) / 1000) + ' с';
+}
+
+function esc(str) {
+  return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function hashCode(str) {
+  var hash = 0;
+  for (var i = 0; i < str.length; i++) hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;
+  return Math.abs(hash);
+}
+
+function getSpecStatus(spec) {
+  if (!spec.tests || !spec.tests.length) return 'unknown';
+  var results = spec.tests[0].results;
+  if (!results || !results.length) return 'unknown';
+  return results[results.length - 1].status || 'unknown';
+}
+
+function getSpecTestId(spec) {
+  if (!spec.tests || !spec.tests.length) return '';
+  return spec.tests[0].id || '';
+}
+
+function getSpecError(spec) {
+  if (!spec.tests || !spec.tests.length) return '';
+  var results = spec.tests[0].results;
+  if (!results || !results.length) return '';
+  var last = results[results.length - 1];
+  if (!last.errors || !last.errors.length) return '';
+  var msg = (last.errors[0].message || last.errors[0].value || '').trim();
+  return msg.split('\n').slice(0, 4).join('\n');
+}
+
+function getSpecDuration(spec) {
+  if (!spec.tests || !spec.tests.length) return 0;
+  var results = spec.tests[0].results;
+  if (!results || !results.length) return 0;
+  return results[results.length - 1].duration || 0;
+}
+
+function flatSpecs(suite) {
+  var specs = [];
+  if (suite.specs) specs = specs.concat(suite.specs);
+  if (suite.suites) suite.suites.forEach(function(s) { specs = specs.concat(flatSpecs(s)); });
+  return specs;
+}
+
+// ---- Render ----
+
+function getTestOrder(blockKey) {
+  try { return JSON.parse(localStorage.getItem('testOrder_' + blockKey) || '[]'); } catch(e) { return []; }
+}
+
+function buildTestRowItem(spec, fileArg, blockKey) {
+  var st = getSpecStatus(spec);
+  var dotCls = st === 'passed' ? 'dot-pass'
+    : (st === 'failed' || st === 'timedOut' || st === 'interrupted') ? 'dot-fail'
+    : st === 'skipped' ? 'dot-skip' : 'dot-unknown';
+  var dur = getSpecDuration(spec);
+  var err = getSpecError(spec);
+  var durText = dur > 0 ? ' · ' + fmt(dur) : '';
+  var isFailed = dotCls === 'dot-fail';
+  var idx = testRegistry.length;
+  testRegistry.push({ file: fileArg, grep: spec.title, line: spec.line || 0, testId: getSpecTestId(spec) });
+  return '<div class="test-row"' +
+    ' data-block-key="' + esc(blockKey) + '"' +
+    ' data-test-key="' + esc(spec.title) + '">' +
+    '<span class="test-drag-handle">&#8942;&#8942;</span>' +
+    '<div class="dot ' + dotCls + '"></div>' +
+    '<div class="test-info">' +
+      '<span class="test-name">' + esc(spec.title) + '</span>' +
+      '<span class="test-dur">' + esc(durText) + '</span>' +
+      (err ? '<div class="test-err">' + esc(err) + '</div>' : '') +
+    '</div>' +
+    (isFailed ? '<button class="report-btn" data-idx="' + idx + '">Отчёт</button>' : '') +
+    '<button class="run-test-btn" data-idx="' + idx + '"' + (running ? ' disabled' : '') + '>&#9654;</button>' +
+  '</div>';
+}
+
+function buildTestRows(specs, fileArg) {
+  var blockKey = fileArg;
+  var savedOrder = getTestOrder(blockKey);
+  var sortedSpecs = specs.slice();
+  if (savedOrder.length) {
+    sortedSpecs.sort(function(a, b) {
+      var ia = savedOrder.indexOf(a.title), ib = savedOrder.indexOf(b.title);
+      if (ia === -1) ia = 999; if (ib === -1) ib = 999;
+      return ia - ib;
+    });
+  }
+  return sortedSpecs.map(function(spec) { return buildTestRowItem(spec, fileArg, blockKey); }).join('');
+}
+
+function suiteStats(specs) {
+  var passed = 0, failed = 0, skipped = 0, unknown = 0;
+  specs.forEach(function(spec) {
+    var st = getSpecStatus(spec);
+    if (st === 'passed') passed++;
+    else if (st === 'failed' || st === 'timedOut' || st === 'interrupted') failed++;
+    else if (st === 'skipped') skipped++;
+    else unknown++;
+  });
+  return { passed: passed, failed: failed, skipped: skipped, unknown: unknown, total: specs.length };
+}
+
+function badgeFromStats(stats) {
+  if (stats.unknown === stats.total) return { cls: 'bg-none', txt: 'не запускался' };
+  if (stats.failed > 0) return { cls: 'bg-fail', txt: stats.passed + '/' + stats.total + ' ✗' };
+  return { cls: 'bg-pass', txt: stats.passed + '/' + stats.total + ' ✓' };
+}
+
+function renderSuites(data) {
+  var container = document.getElementById('suitesContainer');
+  testRegistry = [];
+
+  if (!data || !data.suites || !data.suites.length) {
+    container.innerHTML = '<div class="empty">' +
+      '<div class="empty-icon">&#128203;</div>' +
+      '<div class="empty-text">Результаты ещё не загружены.<br>Нажмите «Запустить все тесты» для первого запуска.</div>' +
+      '</div>';
+    return;
+  }
+
+  // Группируем суиты по папке (prefixFolder/filename → key=prefixFolder)
+  var groupMap = {};
+  var groupOrder = [];
+  data.suites.forEach(function(suite) {
+    var specs = flatSpecs(suite);
+    if (!specs.length) return;
+    var rawFile = (suite.file || suite.title || '').replace(/^tests[\/\\]/, '').replace(/\\/g, '/');
+    var sep = rawFile.indexOf('/');
+    var key = sep >= 0 ? rawFile.slice(0, sep) : '__' + rawFile;
+    if (!groupMap[key]) { groupMap[key] = { folder: sep >= 0 ? rawFile.slice(0, sep) : '', suites: [] }; groupOrder.push(key); }
+    groupMap[key].suites.push(suite);
+  });
+
+  var html = '';
+  var failedSuiteIds = [];
+
+  var savedOrder = [];
+  try { savedOrder = JSON.parse(localStorage.getItem('panelOrder') || '[]'); } catch(e) {}
+  if (savedOrder.length) {
+    groupOrder.sort(function(a, b) {
+      var ia = savedOrder.indexOf(a), ib = savedOrder.indexOf(b);
+      if (ia < 0) ia = 9999; if (ib < 0) ib = 9999;
+      return ia - ib;
+    });
+  }
+
+  groupOrder.forEach(function(key) {
+    var group = groupMap[key];
+    var groupSuites = group.suites;
+
+    if (!group.folder || groupSuites.length === 1) {
+      // Один файл или файл верхнего уровня — стандартный блок
+      groupSuites.forEach(function(suite) {
+        var specs = flatSpecs(suite);
+        var fileName = (suite.file || suite.title || '').replace(/^tests[\/\\]/, '').replace(/\\/g, '/');
+        var fileArg  = (suite.file || '').replace(/\\/g, '/');
+        var suiteId  = 'suite' + hashCode(fileName);
+        var stats = suiteStats(specs);
+        var badge = badgeFromStats(stats);
+        if (stats.failed > 0) failedSuiteIds.push(suiteId);
+        var fileFolder = fileName.indexOf('/') >= 0 ? fileName.slice(0, fileName.indexOf('/')) : '';
+        var displayName = PANEL_NAMES[fileName] || (fileFolder ? PANEL_NAMES[fileFolder] : null) || fileName;
+        html += '<div class="suite" data-key="' + esc(key) + '">' +
+          '<div class="suite-hdr" onclick="toggleSuite(\'' + suiteId + '\')">' +
+            '<span class="drag-handle" title="Перетащить">&#8942;&#8942;</span>' +
+            '<span class="suite-icon" id="icon-' + suiteId + '">&#9658;</span>' +
+            '<span class="suite-name">' + esc(displayName) + '</span>' +
+            '<span class="suite-badge ' + badge.cls + '">' + badge.txt + '</span>' +
+            '<button class="run-file-btn" id="runfile-' + suiteId + '"' +
+                    ' onclick="event.stopPropagation();runTests(\'' + esc(fileArg) + '\')"' +
+                    (running ? ' disabled' : '') + '>&#9654; Запустить</button>' +
+          '</div>' +
+          '<div class="suite-body" id="body-' + suiteId + '">' + buildTestRows(specs, fileArg) + '</div>' +
+        '</div>';
+      });
+    } else {
+      // Несколько файлов из одной папки — один сводный блок
+      var folder = group.folder;
+      var suiteId = 'suite' + hashCode(folder);
+      var allSpecs = [];
+      groupSuites.forEach(function(s) { allSpecs = allSpecs.concat(flatSpecs(s)); });
+      var stats = suiteStats(allSpecs);
+      var badge = badgeFromStats(stats);
+      if (stats.failed > 0) failedSuiteIds.push(suiteId);
+
+      var allSpecPairs = [];
+      groupSuites.forEach(function(suite) {
+        var fa = (suite.file || '').replace(/\\/g, '/');
+        flatSpecs(suite).forEach(function(spec) { allSpecPairs.push({ spec: spec, fileArg: fa }); });
+      });
+      var folderTestOrder = getTestOrder(folder);
+      if (folderTestOrder.length) {
+        allSpecPairs.sort(function(a, b) {
+          var ia = folderTestOrder.indexOf(a.spec.title), ib = folderTestOrder.indexOf(b.spec.title);
+          if (ia === -1) ia = 999; if (ib === -1) ib = 999; return ia - ib;
+        });
+      }
+      var innerHtml = allSpecPairs.map(function(p) { return buildTestRowItem(p.spec, p.fileArg, folder); }).join('');
+
+      var folderArg = 'tests/' + folder;
+      var folderDisplayName = PANEL_NAMES[folder] || folder;
+      html += '<div class="suite" data-key="' + esc(key) + '">' +
+        '<div class="suite-hdr" onclick="toggleSuite(\'' + suiteId + '\')">' +
+          '<span class="drag-handle" title="Перетащить">&#8942;&#8942;</span>' +
+          '<span class="suite-icon" id="icon-' + suiteId + '">&#9658;</span>' +
+          '<span class="suite-name">' + esc(folderDisplayName) + '</span>' +
+          '<span class="suite-badge ' + badge.cls + '">' + badge.txt + '</span>' +
+          '<button class="run-file-btn" id="runfile-' + suiteId + '"' +
+                  ' onclick="event.stopPropagation();runTests(\'' + esc(folderArg) + '\')"' +
+                  (running ? ' disabled' : '') + '>&#9654; Запустить</button>' +
+        '</div>' +
+        '<div class="suite-body" id="body-' + suiteId + '">' + innerHtml + '</div>' +
+      '</div>';
+    }
+  });
+
+  container.innerHTML = html;
+
+  failedSuiteIds.forEach(function(suiteId) {
+    var body = document.getElementById('body-' + suiteId);
+    var icon = document.getElementById('icon-' + suiteId);
+    if (body) { body.classList.add('open'); icon.textContent = '▼'; }
+  });
+
+  initDragAndDrop();
+  initTestDragAndDrop();
+}
+
+// ---- Drag & Drop для перестановки блоков ----
+var _dragSrc = null;
+
+function initDragAndDrop() {
+  var container = document.getElementById('suitesContainer');
+  container.querySelectorAll('.suite').forEach(function(suite) {
+    var handle = suite.querySelector('.drag-handle');
+    if (handle) {
+      handle.addEventListener('mousedown', function() { suite.setAttribute('draggable', 'true'); });
+      handle.addEventListener('mouseup',   function() { suite.removeAttribute('draggable'); });
+    }
+    suite.addEventListener('dragstart', dndStart);
+    suite.addEventListener('dragover',  dndOver);
+    suite.addEventListener('dragleave', dndLeave);
+    suite.addEventListener('drop',      dndDrop);
+    suite.addEventListener('dragend',   dndEnd);
+  });
+  // Клик по ручке не раскрывает блок
+  container.querySelectorAll('.drag-handle').forEach(function(h) {
+    h.addEventListener('click', function(e) { e.stopPropagation(); });
+  });
+}
+
+function dndStart(e) {
+  _dragSrc = this;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', this.dataset.key || '');
+  setTimeout(function() { if (_dragSrc) _dragSrc.classList.add('dragging'); }, 0);
+}
+
+function dndOver(e) {
+  e.preventDefault();
+  if (!_dragSrc || this === _dragSrc) return;
+  e.dataTransfer.dropEffect = 'move';
+  var mid = this.getBoundingClientRect().top + this.offsetHeight / 2;
+  if (e.clientY < mid) {
+    this.classList.add('drag-over-top');    this.classList.remove('drag-over-bottom');
+  } else {
+    this.classList.add('drag-over-bottom'); this.classList.remove('drag-over-top');
+  }
+}
+
+function dndLeave() {
+  this.classList.remove('drag-over-top', 'drag-over-bottom');
+}
+
+function dndDrop(e) {
+  e.preventDefault();
+  if (!_dragSrc || this === _dragSrc) return;
+  var container = document.getElementById('suitesContainer');
+  var mid = this.getBoundingClientRect().top + this.offsetHeight / 2;
+  if (e.clientY < mid) container.insertBefore(_dragSrc, this);
+  else                  container.insertBefore(_dragSrc, this.nextSibling);
+  this.classList.remove('drag-over-top', 'drag-over-bottom');
+  savePanelOrder();
+}
+
+function dndEnd() {
+  if (_dragSrc) {
+    _dragSrc.classList.remove('dragging');
+    _dragSrc.removeAttribute('draggable');
+  }
+  document.querySelectorAll('.suite').forEach(function(s) {
+    s.classList.remove('drag-over-top', 'drag-over-bottom');
+  });
+  _dragSrc = null;
+}
+
+function savePanelOrder() {
+  var order = [];
+  document.querySelectorAll('#suitesContainer .suite[data-key]').forEach(function(s) {
+    order.push(s.dataset.key);
+  });
+  localStorage.setItem('panelOrder', JSON.stringify(order));
+}
+
+// ---- Drag & Drop для тест-строк внутри блоков ----
+var _testDragSrc = null;
+
+function initTestDragAndDrop() {
+  document.querySelectorAll('.test-row').forEach(function(row) {
+    var handle = row.querySelector('.test-drag-handle');
+    if (handle) {
+      handle.addEventListener('mousedown', function() { row.setAttribute('draggable', 'true'); });
+      handle.addEventListener('mouseup',   function() { row.removeAttribute('draggable'); });
+    }
+    row.addEventListener('dragstart', testDndStart);
+    row.addEventListener('dragover',  testDndOver);
+    row.addEventListener('dragleave', testDndLeave);
+    row.addEventListener('drop',      testDndDrop);
+    row.addEventListener('dragend',   testDndEnd);
+  });
+}
+
+function testDndStart(e) {
+  _testDragSrc = this;
+  e.dataTransfer.effectAllowed = 'move';
+  e.stopPropagation();
+  setTimeout(function() { if (_testDragSrc) _testDragSrc.classList.add('dragging-test'); }, 0);
+}
+
+function testDndOver(e) {
+  if (!_testDragSrc || this === _testDragSrc) return;
+  if (_testDragSrc.dataset.blockKey !== this.dataset.blockKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.test-row.test-drag-over-top, .test-row.test-drag-over-bottom').forEach(function(r) {
+    r.classList.remove('test-drag-over-top', 'test-drag-over-bottom');
+  });
+  var mid = this.getBoundingClientRect().top + this.offsetHeight / 2;
+  this.classList.add(e.clientY < mid ? 'test-drag-over-top' : 'test-drag-over-bottom');
+}
+
+function testDndLeave() {
+  this.classList.remove('test-drag-over-top', 'test-drag-over-bottom');
+}
+
+function testDndDrop(e) {
+  if (!_testDragSrc || this === _testDragSrc) return;
+  if (_testDragSrc.dataset.blockKey !== this.dataset.blockKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  var mid = this.getBoundingClientRect().top + this.offsetHeight / 2;
+  if (e.clientY < mid) this.parentNode.insertBefore(_testDragSrc, this);
+  else                  this.parentNode.insertBefore(_testDragSrc, this.nextSibling);
+  this.classList.remove('test-drag-over-top', 'test-drag-over-bottom');
+  var blockKey = _testDragSrc.dataset.blockKey;
+  var order = [];
+  this.parentNode.querySelectorAll('.test-row').forEach(function(r) {
+    if (r.dataset.blockKey === blockKey) order.push(r.dataset.testKey);
+  });
+  localStorage.setItem('testOrder_' + blockKey, JSON.stringify(order));
+}
+
+function testDndEnd() {
+  if (_testDragSrc) {
+    _testDragSrc.classList.remove('dragging-test');
+    _testDragSrc.removeAttribute('draggable');
+  }
+  document.querySelectorAll('.test-row.test-drag-over-top, .test-row.test-drag-over-bottom').forEach(function(r) {
+    r.classList.remove('test-drag-over-top', 'test-drag-over-bottom');
+  });
+  _testDragSrc = null;
+}
+
+// Event delegation for per-test run buttons
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.run-test-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  var idx = parseInt(btn.dataset.idx, 10);
+  if (!isNaN(idx) && testRegistry[idx]) {
+    var t = testRegistry[idx];
+    runTests(t.file, t.grep, t.line);
+  }
+});
+
+// Event delegation for "open HTML report" buttons (shown on failed tests)
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.report-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  var idx = parseInt(btn.dataset.idx, 10);
+  var t = testRegistry[idx];
+  var hash = (t && t.testId) ? '#?testId=' + encodeURIComponent(t.testId) : '';
+  window.open('/report/' + hash, '_blank');
+});
+
+function renderStats(data) {
+  if (!data || !data.stats) {
+    document.getElementById('statsText').textContent = '';
+    document.getElementById('runTime').textContent = '';
+    if (!running) {
+      document.getElementById('statusPill').className = 'status-pill pill-idle';
+      document.getElementById('statusPill').textContent = 'Готов';
+    }
+    return;
+  }
+  var s = data.stats;
+  var total = (s.expected || 0) + (s.unexpected || 0) + (s.skipped || 0) + (s.flaky || 0);
+  var html = '<span class="stat c-total"><b>' + total + '</b> всего</span>' +
+             '<span class="stat c-pass"><b>' + (s.expected || 0) + '</b> ✓</span>';
+  if (s.unexpected > 0) html += '<span class="stat c-fail"><b>' + s.unexpected + '</b> ✗</span>';
+  if (s.skipped > 0)    html += '<span class="stat c-skip"><b>' + s.skipped + '</b> пропущено</span>';
+  document.getElementById('statsText').innerHTML = html;
+
+  var d = new Date(s.startTime);
+  document.getElementById('runTime').textContent =
+    d.toLocaleDateString('ru-RU') + ' ' +
+    d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) +
+    ' · ' + fmt(s.duration);
+
+  if (!running) {
+    var pill = document.getElementById('statusPill');
+    if (s.unexpected > 0) {
+      pill.className = 'status-pill pill-fail';
+      pill.textContent = 'Есть ошибки ✗';
+    } else {
+      pill.className = 'status-pill pill-idle';
+      pill.textContent = 'Все прошли ✓';
+    }
+  }
+}
+
+function toggleSuite(id) {
+  var body = document.getElementById('body-' + id);
+  var icon = document.getElementById('icon-' + id);
+  if (!body) return;
+  body.classList.toggle('open');
+  icon.textContent = body.classList.contains('open') ? '▼' : '▶';
+}
+
+function setRunning(r) {
+  running = r;
+  var btn = document.getElementById('runAllBtn');
+  btn.disabled = r;
+  btn.innerHTML = r ? '<span class="spinner"></span>Выполняется...' : '&#9654; Запустить все тесты';
+  var stopBtn = document.getElementById('stopBtn');
+  stopBtn.style.display = r ? '' : 'none';
+  stopBtn.disabled = false;
+  stopBtn.innerHTML = '&#9632; Остановить';
+  document.querySelectorAll('.run-file-btn').forEach(function(b) { b.disabled = r; });
+  document.querySelectorAll('.run-test-btn').forEach(function(b) { b.disabled = r; });
+  document.querySelectorAll('.env-btn').forEach(function(b) { b.disabled = r; });
+  if (r) {
+    var pill = document.getElementById('statusPill');
+    pill.className = 'status-pill pill-running';
+    pill.textContent = 'Запущены...';
+  }
+}
+
+function stopTests() {
+  if (!running) return;
+  document.getElementById('stopBtn').disabled = true;
+  document.getElementById('stopBtn').textContent = 'Останавливаю...';
+  fetch('/api/stop', { method: 'POST' }).catch(function(e) { console.error('Ошибка остановки:', e); });
+}
+
+function loadResults() {
+  fetch('/api/results?env=' + selectedEnv).then(function(r) { return r.json(); }).then(function(data) {
+    renderSuites(data);
+    renderStats(data);
+  }).catch(function(e) { console.error('Ошибка загрузки результатов:', e); });
+}
+
+function loadLog() {
+  fetch('/api/log?env=' + selectedEnv).then(function(r) { return r.json(); }).then(function(d) {
+    var logEl = document.getElementById('log');
+    logEl.textContent = (d && d.text) || '';
+    logEl.scrollTop = logEl.scrollHeight;
+    document.getElementById('logTitle').textContent = (d && d.label) ? 'Лог: ' + d.label : 'Лог последнего запуска';
+  }).catch(function(e) { console.error('Ошибка загрузки лога:', e); });
+}
+
+function runTests(file, grep, line) {
+  if (running) return;
+
+  fetch('/api/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file: file || '', grep: grep || '', line: line || 0, env: selectedEnv }),
+  }).catch(function(e) { console.error('Ошибка запуска:', e); });
+}
+
+// ---- SSE ----
+var evtSource = new EventSource('/api/events');
+
+evtSource.addEventListener('connected', function() {
+  fetch('/api/status').then(function(r) { return r.json(); }).then(function(d) {
+    if (d.running && d.env) {
+      selectedEnv = d.env;
+      localStorage.setItem('testEnv', d.env);
+      applyEnvButtons();
+    }
+    if (d.running) setRunning(true);
+    loadResults();
+    loadLog();
+  });
+});
+
+evtSource.addEventListener('start', function(e) {
+  var data = JSON.parse(e.data);
+  setRunning(true);
+  var name = data.grep ? data.grep
+    : (data.file && data.file !== 'все тесты' ? data.file.replace(/^tests[\/\\]/, '') : 'все тесты');
+  var envLabel = data.baseUrl ? ' (' + data.baseUrl.replace(/^https?:\/\//, '') + ')' : '';
+  document.getElementById('statusPill').textContent = 'Запущено: ' + name + envLabel;
+  document.getElementById('logTitle').textContent = 'Лог: ' + name + envLabel;
+
+  var logEl = document.getElementById('log');
+  logEl.textContent = '';
+  if (!logOpen) {
+    logOpen = true;
+    logEl.classList.add('open');
+    document.getElementById('logToggleBtn').innerHTML = '&#9650; Свернуть';
+  }
+
+  if (data.env) {
+    selectedEnv = data.env;
+    localStorage.setItem('testEnv', data.env);
+    applyEnvButtons();
+  }
+});
+
+evtSource.addEventListener('log', function(e) {
+  var data = JSON.parse(e.data);
+  var logEl = document.getElementById('log');
+  logEl.textContent += data.text;
+  logEl.scrollTop = logEl.scrollHeight;
+});
+
+evtSource.addEventListener('done', function(e) {
+  var data = JSON.parse(e.data);
+  setRunning(false);
+  var pill = document.getElementById('statusPill');
+  if (data.stopped) {
+    pill.className = 'status-pill pill-fail';
+    pill.textContent = 'Остановлено';
+  } else if (data.code === 0) {
+    pill.className = 'status-pill pill-idle';
+    pill.textContent = 'Все прошли ✓';
+  } else {
+    pill.className = 'status-pill pill-fail';
+    pill.textContent = 'Есть ошибки ✗';
+  }
+  loadResults();
+});
+
+evtSource.onerror = function() {
+  if (!running) {
+    var pill = document.getElementById('statusPill');
+    pill.className = 'status-pill pill-fail';
+    pill.textContent = 'Нет связи с сервером';
+  }
+};
+</script>
+</body>
+</html>

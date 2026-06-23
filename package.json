@@ -1,0 +1,20 @@
+{
+  "name": "autotests",
+  "version": "1.0.0",
+  "description": "Автотесты сайта клиники",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "dashboard": "node dashboard.js",
+    "dashboard:watch": "node --watch dashboard.js"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "imapflow": "^1.3.7",
+    "undici": "^7.27.2"
+  }
+}
