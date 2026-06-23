@@ -268,6 +268,69 @@ test('Личная страница врача — блок «Врач о себ
   console.log('[test] ✓ Шеврон вверх → закрыл блок');
 });
 
+test('Личная страница врача — блок «С чем поможет»: расположен после «Врач о себе», шеврон и кнопка «Свернуть»', async ({ page }) => {
+  test.setTimeout(120000);
+  await gotoDoctor25(page);
+
+  const vroSebe  = page.locator('details.accordion-container').filter({ hasText: 'Врач о себе' }).first();
+  const schemPom = page.locator('details.accordion-container').filter({ hasText: 'С чем поможет' }).first();
+
+  if (!await schemPom.isVisible()) {
+    console.log('[test] Блок "С чем поможет" отсутствует, проверка пропущена');
+    return;
+  }
+
+  // «С чем поможет» идёт после «Врач о себе» в DOM
+  if (await vroSebe.isVisible()) {
+    const isAfter = await page.evaluate(() => {
+      const all = [...document.querySelectorAll('details.accordion-container')];
+      const idxA = all.findIndex(d => d.innerText.includes('Врач о себе'));
+      const idxB = all.findIndex(d => d.innerText.includes('С чем поможет'));
+      return idxB > idxA;
+    });
+    expect(isAfter, '«С чем поможет» должен быть ниже «Врач о себе»').toBe(true);
+    console.log('[test] ✓ Порядок: «Врач о себе» → «С чем поможет»');
+  }
+
+  const chevron = schemPom.locator('summary svg.chevron').first();
+
+  // Закрытый шеврон смотрит вниз
+  const transformClosed = await chevron.evaluate(el => window.getComputedStyle(el).transform);
+  expect(transformClosed, 'Закрытый шеврон не должен быть повёрнут').not.toContain('matrix(-1');
+  console.log('[test] Шеврон вниз (закрыт)');
+
+  // Клик — блок открывается, шеврон поворачивается вверх
+  await schemPom.locator('summary').click();
+  await page.waitForTimeout(500);
+  expect(await schemPom.evaluate(d => d.open), 'Блок должен открыться').toBe(true);
+  const transformOpen = await chevron.evaluate(el => window.getComputedStyle(el).transform);
+  expect(transformOpen, 'Открытый шеврон должен быть повёрнут на 180°').toContain('matrix(-1');
+  console.log('[test] ✓ Шеврон вверх (открыт)');
+
+  // Кнопка «Свернуть» видна в конце списка
+  const svernBtn = schemPom.locator('button.accordion-button').first();
+  await expect(svernBtn).toBeVisible({ timeout: 3000 });
+  console.log('[test] ✓ Кнопка «Свернуть» присутствует');
+
+  // Клик «Свернуть» — блок закрывается, шеврон возвращается вниз
+  await svernBtn.scrollIntoViewIfNeeded();
+  await svernBtn.click();
+  await page.waitForTimeout(500);
+  expect(await schemPom.evaluate(d => d.open), 'Блок должен закрыться').toBe(false);
+  const transformAfterSvern = await chevron.evaluate(el => window.getComputedStyle(el).transform);
+  expect(transformAfterSvern, 'Шеврон должен вернуться в положение вниз').not.toContain('matrix(-1');
+  console.log('[test] ✓ «Свернуть» сработала — блок закрыт, шеврон вниз');
+
+  // Клик на шеврон вверх — блок снова открывается, затем закрывается
+  await schemPom.locator('summary').click();
+  await page.waitForTimeout(500);
+  expect(await schemPom.evaluate(d => d.open)).toBe(true);
+  await schemPom.locator('summary').click();
+  await page.waitForTimeout(500);
+  expect(await schemPom.evaluate(d => d.open), 'Клик на открытый шеврон должен закрыть блок').toBe(false);
+  console.log('[test] ✓ Шеврон вверх → закрыл блок');
+});
+
 test('Личная страница врача — кнопка «еще»: клик раскрывает дополнительные специальности', async ({ page }) => {
   test.setTimeout(120000);
   await gotoDoctor25(page);
