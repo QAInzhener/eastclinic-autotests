@@ -123,6 +123,38 @@ test('Шапка: Клиники — города Москва / Люберцы 
   }
 });
 
+// --- Кнопка «Контакты» (иконка чата) ---
+test('Шапка: кнопка «Контакты» — клик открывает модальное окно Контакты', async ({ page }) => {
+  await page.goto(BASE_URL + '/', { waitUntil: 'networkidle' });
+
+  const chatBtn = page.locator('button.chat-btn').first();
+  await expect(chatBtn, 'Кнопка Контакты должна быть видна в шапке').toBeVisible({ timeout: 5000 });
+
+  await chatBtn.click();
+  await page.waitForTimeout(500);
+
+  // Модальное окно «Контакты»
+  const modal = page.locator('div.modal').filter({ hasText: 'Контакты' }).first();
+  await expect(modal, 'Модальное окно «Контакты» должно открыться').toBeVisible({ timeout: 5000 });
+
+  // Заголовок «Контакты»
+  await expect(
+    modal.locator('.title').first(),
+    'Заголовок модального окна должен быть «Контакты»'
+  ).toHaveText('Контакты', { timeout: 3000 });
+
+  // Telegram и MAX
+  await expect(modal.getByText('Telegram').first()).toBeVisible();
+  await expect(modal.getByText('MAX').first()).toBeVisible();
+
+  // Телефон (номер зависит от геолокации — проверяем формат +7)
+  const phoneEl = modal.locator('a[href^="tel:"], [class*="phone"]').first();
+  await expect(phoneEl).toBeVisible();
+
+  // Email
+  await expect(modal.getByText('info@eastclinic.ru').first()).toBeVisible();
+});
+
 // --- Переходы из раскрывающихся списков ---
 // Ссылки ищем по тексту (getByRole), а не по классу — иначе .first()
 // берёт первый элемент из DOM независимо от того, какой дропдаун открыт.
