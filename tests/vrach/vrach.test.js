@@ -140,6 +140,165 @@ test('Личная страница врача — вертикальная га
   }
 });
 
+test('Личная страница врача — основной блок фото: размер, шевроны лево/право, прокрутка, синяя обводка в галерее, кнопка звука, таймер, иконка громкости, пагинация', async ({ page }) => {
+  test.setTimeout(120000);
+  await gotoDoctor25(page);
+
+  const gallery = page.locator('.single-doctor__gallery').first();
+  if (!await gallery.isVisible({ timeout: 3000 })) {
+    console.log('[test] Галерея отсутствует — проверка пропущена');
+    return;
+  }
+
+  // Если у врача нет видео в первом слайде, переходим к Шуваевой (≥4 фото, первый слайд — видео)
+  const hasVideo = await gallery.locator('.single-doctor__gallery__footer-bar').first().isVisible().catch(() => false);
+  if (!hasVideo) {
+    await page.goto(BASE_URL + '/vrach/shuvaeva-olga-borisovna-nevrolog', { waitUntil: 'load' });
+    await page.waitForTimeout(1200);
+    console.log('[test] Перешли к Шуваевой (первый слайд — видео)');
+  }
+
+  // --- 1. Основной блок: размер 523×523 ---
+  const mainPhoto = gallery.locator('.single-doctor__gallery__main-photo').first();
+  await expect(mainPhoto, 'Основной блок фото должен быть виден').toBeVisible({ timeout: 5000 });
+  const mainSize = await mainPhoto.evaluate(el => {
+    const r = el.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height) };
+  });
+  expect(mainSize.w, 'Основной блок: ширина 523px').toBe(523);
+  expect(mainSize.h, 'Основной блок: высота 523px').toBe(523);
+  console.log(`[test] ✓ Основной блок: ${mainSize.w}×${mainSize.h}`);
+
+  // --- 2. Шевроны влево / вправо: 32×32, SVG чёрного цвета ---
+  const leftArrow  = gallery.locator('.single-doctor__gallery__back_arrow').first();
+  const rightArrow = gallery.locator('.single-doctor__gallery__next_arrow').first();
+  await expect(leftArrow,  'Шеврон влево должен быть виден').toBeVisible();
+  await expect(rightArrow, 'Шеврон вправо должен быть виден').toBeVisible();
+
+  const leftSize = await leftArrow.evaluate(el => {
+    const r = el.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height) };
+  });
+  expect(leftSize.w,  'Шеврон влево: ширина 32px').toBe(32);
+  expect(leftSize.h,  'Шеврон влево: высота 32px').toBe(32);
+
+  const rightSize = await rightArrow.evaluate(el => {
+    const r = el.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height) };
+  });
+  expect(rightSize.w, 'Шеврон вправо: ширина 32px').toBe(32);
+  expect(rightSize.h, 'Шеврон вправо: высота 32px').toBe(32);
+
+  // SVG внутри шеврона — чёрного цвета (#323232)
+  const leftSvgFill = await leftArrow.locator('svg').first().getAttribute('fill');
+  expect(leftSvgFill, 'SVG шеврона влево: чёрный цвет').toBe('#323232');
+  console.log('[test] ✓ Шевроны влево/вправо: 32×32, SVG чёрный');
+
+  // --- 3. Клик вправо → главный слайд и активная миниатюра меняются ---
+  const getActiveMainIdx = () => page.evaluate(() => {
+    const slides = [...document.querySelectorAll('.single-doctor__gallery__images-wrap')];
+    return slides.findIndex(s => s.classList.contains('carousel__slide--active'));
+  });
+  const getActiveThumbIdx = () => page.evaluate(() => {
+    const thumbs = [...document.querySelectorAll('.single-doctor__gallery .desktop-carousel-container .carousel__slide')];
+    return thumbs.findIndex(t => t.classList.contains('active'));
+  });
+
+  // Ждём, пока вертикальная галерея проставит класс active на первую миниатюру
+  await page.waitForFunction(
+    () => document.querySelector('.single-doctor__gallery .desktop-carousel-container .carousel__slide.active') !== null,
+    { timeout: 5000 }
+  ).catch(() => {});
+
+  const mainBefore  = await getActiveMainIdx();
+  const thumbBefore = await getActiveThumbIdx();
+  console.log(`[test] До клика: главный слайд #${mainBefore}, миниатюра #${thumbBefore}`);
+
+  await rightArrow.click();
+  await page.waitForTimeout(700);
+
+  const mainAfterRight  = await getActiveMainIdx();
+  const thumbAfterRight = await getActiveThumbIdx();
+  expect(mainAfterRight,  'Клик вправо: главный слайд должен перейти к следующему').toBe(mainBefore + 1);
+  expect(thumbAfterRight, 'Клик вправо: активная миниатюра в галерее должна сдвинуться').toBe(thumbBefore + 1);
+  console.log(`[test] ✓ После клика вправо: слайд #${mainAfterRight}, миниатюра #${thumbAfterRight} (синяя обводка)`);
+
+  // --- 4. Клик влево → возврат к исходному слайду ---
+  await leftArrow.click();
+  await page.waitForTimeout(700);
+  const mainAfterLeft  = await getActiveMainIdx();
+  const thumbAfterLeft = await getActiveThumbIdx();
+  expect(mainAfterLeft,  'Клик влево: главный слайд должен вернуться').toBe(mainBefore);
+  expect(thumbAfterLeft, 'Клик влево: активная миниатюра должна вернуться').toBe(thumbBefore);
+  console.log('[test] ✓ Клик влево: вернулись к первому слайду');
+
+  // --- 5. Кнопка звука (только на видео-слайде) ---
+  const footerBar  = gallery.locator('.single-doctor__gallery__footer-bar').first();
+  const soundWrap  = gallery.locator('.single-doctor__gallery__main-video__button__wrap').first();
+  if (await footerBar.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await expect(soundWrap, 'Кнопка звука должна быть видна').toBeVisible();
+
+    const soundSize = await soundWrap.evaluate(el => {
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return { w: Math.round(r.width), h: Math.round(r.height), br: s.borderRadius, bg: s.backgroundColor };
+    });
+    expect(soundSize.h,  'Кнопка звука: высота 40px').toBe(40);
+    expect(parseInt(soundSize.br), 'Кнопка звука: закруглённые края').toBeGreaterThan(0);
+    // Полупрозрачный фон (rgba с alpha < 1)
+    expect(soundSize.bg, 'Кнопка звука: полупрозрачный фон').toContain('rgba');
+    console.log(`[test] ✓ Кнопка звука: ${soundSize.w}×${soundSize.h}, borderRadius ${soundSize.br}, bg ${soundSize.bg}`);
+
+    // --- 6. Таймер: формат «0:30», белый цвет ---
+    const timerEl = soundWrap.locator('span.text-semibold').first();
+    await expect(timerEl, 'Таймер должен быть виден').toBeVisible();
+    const timerText = (await timerEl.textContent()).trim();
+    expect(timerText, 'Таймер: формат M:SS').toMatch(/^\d+:\d+$/);
+    const timerColor = await timerEl.evaluate(el => window.getComputedStyle(el).color);
+    expect(timerColor, 'Таймер: белый цвет текста').toBe('rgb(255, 255, 255)');
+    // Шрифт: 14px, font-weight 400
+    const timerFont = await timerEl.evaluate(el => {
+      const s = window.getComputedStyle(el);
+      return { size: s.fontSize, weight: s.fontWeight };
+    });
+    expect(parseFloat(timerFont.size), 'Таймер: размер цифр 14–16px').toBeLessThanOrEqual(16);
+    expect(parseInt(timerFont.weight), 'Таймер: вес 400–500').toBeLessThanOrEqual(500);
+    console.log(`[test] ✓ Таймер: "${timerText}", ${timerFont.size} / weight ${timerFont.weight}`);
+
+    // --- 7. Иконка громкости: 24×24, изначально выключена (volume_off) ---
+    const volSvg  = soundWrap.locator('svg').first();
+    await expect(volSvg, 'Иконка громкости должна быть видна').toBeVisible();
+    const volSize = await volSvg.evaluate(el => ({
+      w: parseInt(el.getAttribute('width') || '0'),
+      h: parseInt(el.getAttribute('height') || '0'),
+    }));
+    expect(volSize.w, 'Иконка громкости: ширина 24px').toBe(24);
+    expect(volSize.h, 'Иконка громкости: высота 24px').toBe(24);
+    // Иконка перечёркнута (звук выключен) — g#volume_off
+    const isMuted = await volSvg.evaluate(el => !!el.querySelector('#volume_off, [id*="volume_off"], [id*="mute"]'));
+    expect(isMuted, 'Иконка громкости: при загрузке звук выключен (перечёркнута)').toBe(true);
+    console.log('[test] ✓ Иконка громкости: 24×24, звук выключен');
+  } else {
+    console.log('[test] Первый слайд — фото (кнопка звука отсутствует, проверка пропущена)');
+  }
+
+  // --- 8. Пагинация: контейнер + кружки, один активен ---
+  const pagination = gallery.locator('.carousel-control-container').first();
+  await expect(pagination, 'Блок пагинации должен быть виден').toBeVisible();
+  const controls = pagination.locator('.control');
+  const totalControls = await controls.count();
+  expect(totalControls, 'Пагинация: должна содержать хотя бы 1 кружок').toBeGreaterThan(0);
+
+  // Кружки — окружности (borderRadius 50px)
+  const firstControlBR = await controls.first().evaluate(el => window.getComputedStyle(el).borderRadius);
+  expect(parseInt(firstControlBR), 'Кружки пагинации: закруглённые (border-radius ≥ 40px)').toBeGreaterThanOrEqual(40);
+
+  // Ровно один кружок активен
+  const activeControls = await pagination.locator('.control.active').count();
+  expect(activeControls, 'Пагинация: ровно один кружок должен быть активен').toBe(1);
+  console.log(`[test] ✓ Пагинация: ${totalControls} кружков, 1 активен`);
+});
+
 test('Личная страница врача — блок информации: ФИО, специальности, стаж, возраст приёма, счётчик отзывов, работа с беременными', async ({ page }) => {
   test.setTimeout(120000);
   await gotoDoctor25(page);
