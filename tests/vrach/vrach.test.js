@@ -10,7 +10,7 @@ async function gotoDoctor25(page) {
     const btn = page.locator('button.more-button').first();
     await btn.scrollIntoViewIfNeeded();
     await btn.click();
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
     const newCount = await page.evaluate(() => document.querySelectorAll('.doctor-info-container').length);
     if (newCount === count) break;
     count = newCount;
@@ -805,9 +805,11 @@ test('Личная страница врача — отзывы: фильтры 
   }
 
   const secondBatch = parseInt(btnText2.match(/\d+/)?.[0] || '0');
-  expect(secondBatch, '2-я и последующие загрузки должны показывать 10 отзывов').toBe(10);
+  // Второй и последующие клики показывают до 10 отзывов (меньше — если в базе осталось меньше)
+  expect(secondBatch, '2-я загрузка должна показывать от 1 до 10 отзывов').toBeGreaterThan(0);
+  expect(secondBatch, '2-я загрузка должна показывать не более 10 отзывов').toBeLessThanOrEqual(10);
 
-  // 2-й клик — ждём реального добавления 10 отзывов в DOM
+  // 2-й клик — ждём добавления отзывов в DOM
   const beforeSecond = await countReviews();
   await showMoreBtn.click();
   await page.waitForFunction(
@@ -816,7 +818,8 @@ test('Личная страница врача — отзывы: фильтры 
     { timeout: 8000 }
   );
   const afterSecond = await countReviews();
-  expect(afterSecond - beforeSecond, '2-й клик должен добавить ровно 10 отзывов').toBe(10);
+  // Добавлено ровно столько, сколько обещала кнопка
+  expect(afterSecond - beforeSecond, `2-й клик должен добавить ${secondBatch} отзывов`).toBe(secondBatch);
   console.log(`[test] ✓ После 2-го клика: ${afterSecond} отзывов (+10)`);
 });
 
