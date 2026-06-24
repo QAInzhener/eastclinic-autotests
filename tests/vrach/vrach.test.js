@@ -27,6 +27,119 @@ async function gotoDoctor25(page) {
   await page.waitForTimeout(1000);
 }
 
+test('Личная страница врача — вертикальная галерея фотографий: позиция, hover, клик, иконка видео, шевроны', async ({ page }) => {
+  test.setTimeout(120000);
+  await gotoDoctor25(page);
+
+  const gallery  = page.locator('.single-doctor__gallery').first();
+  const backBtn  = page.locator('button.back-button').first();
+  const thumbSel = '.desktop-carousel-container .carousel__slide';
+  const thumbs   = gallery.locator(thumbSel);
+
+  if (!await gallery.isVisible({ timeout: 3000 })) {
+    console.log('[test] Галерея отсутствует — проверка пропущена');
+    return;
+  }
+
+  // Галерея расположена ниже кнопки «Назад»
+  if (await backBtn.isVisible()) {
+    const backBottom  = await backBtn.evaluate(el => el.getBoundingClientRect().bottom);
+    const galleryTop  = await gallery.evaluate(el => el.getBoundingClientRect().top);
+    expect(galleryTop, 'Галерея должна быть ниже кнопки «Назад»').toBeGreaterThanOrEqual(backBottom);
+    console.log('[test] ✓ Галерея расположена под кнопкой «Назад»');
+  }
+
+  let thumbCount = await thumbs.count();
+  console.log(`[test] Фотографий в галерее: ${thumbCount}`);
+
+  if (thumbCount === 0) {
+    console.log('[test] Нет фотографий — проверка пропущена');
+    return;
+  }
+
+  // Hover → синяя обводка
+  await thumbs.first().hover();
+  await page.waitForTimeout(300);
+  const borderOnHover = await thumbs.first().evaluate(el => window.getComputedStyle(el).border);
+  expect(borderOnHover, 'При наведении должна появиться синяя обводка').toContain('rgb(45, 127, 249)');
+  console.log('[test] ✓ Hover → синяя обводка');
+
+  // Клик на 2-й блок → он получает класс «active»
+  if (thumbCount >= 2) {
+    await thumbs.nth(1).click();
+    await page.waitForTimeout(500);
+    const secondIsActive = await thumbs.nth(1).evaluate(el => el.classList.contains('active'));
+    expect(secondIsActive, '2-й блок должен стать активным после клика').toBe(true);
+    console.log('[test] ✓ Клик на 2-й блок → демонстрируется в основном блоке');
+    // Возвращаем к первому
+    await thumbs.first().click();
+    await page.waitForTimeout(300);
+  }
+
+  // Иконка видео (белый треугольник 16×16) — только в блоках с видео
+  const playIcon = thumbs.first().locator('.single-doctor__gallery__playbutton svg').first();
+  if (await playIcon.count() > 0) {
+    expect(await playIcon.getAttribute('width'),  'Иконка видео: ширина 16px').toBe('16');
+    expect(await playIcon.getAttribute('height'), 'Иконка видео: высота 16px').toBe('16');
+    console.log('[test] ✓ Иконка видео 16×16 в первом блоке');
+  } else {
+    console.log('[test] Первый блок — фото (иконка видео отсутствует)');
+  }
+
+  const getSize = (loc) => loc.evaluate(el => {
+    const r = el.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height) };
+  });
+  const topChevron    = gallery.locator('.chevron-container').nth(0);
+  const bottomChevron = gallery.locator('.chevron-container').nth(1);
+
+  if (thumbCount <= 3) {
+    // При 1–3 фото оба шеврона скрыты
+    expect((await getSize(bottomChevron)).w, 'При ≤3 фото нижний шеврон скрыт').toBe(0);
+    expect((await getSize(topChevron)).w,    'При ≤3 фото верхний шеврон скрыт').toBe(0);
+    console.log('[test] ✓ 1–3 фото → шевроны скрыты');
+
+    // Для проверки шевронов переходим к Шуваевой (≥4 фото)
+    await page.goto('https://eastclinic.ru/vrach/shuvaeva-olga-borisovna-nevrolog', { waitUntil: 'load' });
+    await page.waitForTimeout(1200);
+    thumbCount = await thumbs.count();
+    console.log(`[test] Шуваева — фотографий: ${thumbCount}`);
+  }
+
+  if (thumbCount >= 4) {
+    // Нижний шеврон видим, SVG внутри 24×24
+    await expect(bottomChevron, 'Нижний шеврон должен быть виден при ≥4 фото').toBeVisible();
+    const svgBot = await bottomChevron.locator('svg.nav-chevron').first().evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) };
+    });
+    expect(svgBot.w, 'Нижний шеврон SVG: ширина 24px').toBe(24);
+    expect(svgBot.h, 'Нижний шеврон SVG: высота 24px').toBe(24);
+    console.log('[test] ✓ Нижний шеврон 24×24 (≥4 фото)');
+
+    // Верхний шеврон скрыт в начале
+    expect((await getSize(topChevron)).w, 'В начале верхний шеврон должен быть скрыт').toBe(0);
+    console.log('[test] ✓ Верхний шеврон скрыт в начале');
+
+    // Прокрутка вниз → верхний шеврон появляется
+    let topW = 0;
+    for (let i = 0; i < 6 && topW === 0; i++) {
+      if ((await getSize(bottomChevron)).w === 0) break;
+      await bottomChevron.click();
+      await page.waitForTimeout(600);
+      topW = (await getSize(topChevron)).w;
+    }
+    expect(topW, 'После прокрутки вниз верхний шеврон должен появиться').toBeGreaterThan(0);
+    const svgTop = await topChevron.locator('svg.nav-chevron').first().evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) };
+    });
+    expect(svgTop.w, 'Верхний шеврон SVG: ширина 24px').toBe(24);
+    expect(svgTop.h, 'Верхний шеврон SVG: высота 24px').toBe(24);
+    console.log('[test] ✓ Верхний шеврон 24×24 появился после прокрутки вниз');
+  }
+});
+
 test('Личная страница врача — блок информации: ФИО, специальности, стаж, возраст приёма, счётчик отзывов, работа с беременными', async ({ page }) => {
   test.setTimeout(120000);
   await gotoDoctor25(page);
