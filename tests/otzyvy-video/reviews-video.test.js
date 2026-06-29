@@ -5,9 +5,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const VIDEO_PATH      = path.resolve(__dirname, '../fixtures/ezhik-v-tumane-1m59s.mp4');
-const VIDEO_PATH_2M01 = path.resolve(__dirname, '../fixtures/ezhik-v-tumane-2m01s.mp4');
-const VIDEO_PATH_3M00 = path.resolve(__dirname, '../fixtures/ezhik-v-tumane-3m00s.mp4');
+const VIDEO_PATH      = path.resolve(__dirname, '../videos/ezhik-v-tumane-1m59s.mp4');
+const VIDEO_PATH_2M01 = path.resolve(__dirname, '../videos/ezhik-v-tumane-2m01s.mp4');
+const VIDEO_PATH_3M00 = path.resolve(__dirname, '../videos/ezhik-v-tumane-3m00s.mp4');
 
 const TEST_NAME    = 'Тест Тестов';
 const TEST_PHONE   = '4444444444';
