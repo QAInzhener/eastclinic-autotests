@@ -114,39 +114,38 @@ export async function publishReviewInAdmin(page, searchSnippet, doctorName = nul
 // Удаляет тестовый отзыв из админ-панели: Карандаш → Удалить → Принять.
 // Вызывать после всех проверок, чтобы не оставлять мусор в базе.
 export async function deleteReviewInAdmin(page, searchSnippet, doctorName = null) {
-  await goToReviews(page);
+  // loginToAdmin обеспечивает попадание на панель администратора
+  // и при необходимости повторно логинится (сессия могла истечь за время теста с видео)
+  await loginToAdmin(page);
+  // После loginToAdmin мы уже в разделе Отзывы
 
   const idx = await findReviewRowIndex(page, searchSnippet, doctorName);
   if (idx < 0) throw new Error(`Строка с отзывом "${searchSnippet}" не найдена для удаления`);
 
-  const row = page.locator('tr').nth(idx);
-
-  // Кнопка Карандаш (редактирование) — последняя кнопка в строке
-  await row.locator('button').last().click();
-
-  // Ждём модальное окно «Редактирование отзыва»
-  await page.getByText('Редактирование отзыва').waitFor({ state: 'visible', timeout: 10000 });
-
-  // Прокручиваем модал до конца, чтобы появилась кнопка «Удалить» внизу справа
-  await page.evaluate(() => {
-    const candidates = [...document.querySelectorAll('[class*="modal"], [role="dialog"], [class*="popup"]')];
-    const modal = candidates.find(el => el.innerText?.includes('Редактирование отзыва'));
-    if (!modal) return;
-    modal.scrollTop = modal.scrollHeight;
-    // Пробуем также прокрутить вложенный скроллируемый контейнер
-    const inner = modal.querySelector('[class*="body"], [class*="content"], [class*="scroll"]');
-    if (inner) inner.scrollTop = inner.scrollHeight;
-  });
-  await page.waitForTimeout(500);
-
-  // Регистрируем обработчик нативного браузерного confirm-диалога
-  // «Подтвердить действие на eastclinic.ru» — он может появиться после любого из кликов ниже
   page.on('dialog', async dialog => dialog.accept());
 
-  // Нажимаем кнопку «Удалить» внизу справа в модале редактирования
-  await page.getByRole('button', { name: /^удалить$/i }).click();
+  // Кнопка Карандаш (первая кнопка в строке) — открывает модал редактирования
+  await page.evaluate((rowIdx) => {
+    const row = document.querySelectorAll('tr')[rowIdx];
+    const buttons = [...row.querySelectorAll('button')];
+    if (buttons[0]) buttons[0].click();
+  }, idx);
 
-  // В появившемся окне «Удалить отзыв» нажимаем «Принять»
+  // Ждём PrimeVue-диалога редактирования
+  await page.locator('[class*="p-dialog"]').first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForTimeout(1000);
+
+  // Прокручиваем модал вниз — кнопка «Удалить» внизу справа
+  const modal = page.locator('[class*="modal"], [role="dialog"]').first();
+  await modal.hover();
+  await page.mouse.wheel(0, 3000);
+  await page.waitForTimeout(600);
+
+  // Нажимаем «Удалить»
+  await page.getByRole('button', { name: /удалить/i }).waitFor({ state: 'visible', timeout: 5000 });
+  await page.getByRole('button', { name: /удалить/i }).click();
+
+  // Подтверждаем «Принять»
   await page.getByRole('button', { name: /принять/i }).waitFor({ state: 'visible', timeout: 5000 });
   await page.getByRole('button', { name: /принять/i }).click();
 
