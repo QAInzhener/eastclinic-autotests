@@ -16,8 +16,8 @@
   --text: #1f1f1f;
   --text-muted: #888;
   --border: #f0f0f0;
-  --run-all-bg: #1565c0;
-  --run-all-hover: #0d47a1;
+  --run-all-bg: #2d7ff9;
+  --run-all-hover: #1a6de0;
   --run-file-bg: #e8eaf6;
   --run-file-color: #283593;
   --run-file-hover: #c5cae9;
@@ -38,8 +38,8 @@
   --text: #e0e0e0;
   --text-muted: #777;
   --border: #333;
-  --run-all-bg: #1976d2;
-  --run-all-hover: #1565c0;
+  --run-all-bg: #2d7ff9;
+  --run-all-hover: #1a6de0;
   --run-file-bg: #283593;
   --run-file-color: #c5cae9;
   --run-file-hover: #303f9f;
@@ -81,8 +81,19 @@ header {
   color: rgb(38, 38, 51);
   flex: 1;
   text-align: center;
+  pointer-events: none;
+  user-select: none;
 }
 .dark .header-title { color: rgb(46, 125, 50); }
+
+/* env-toggle в шапке: по центру между лого (~210px) и заголовком (~50% ширины) */
+header .env-toggle {
+  position: absolute;
+  left: 27.5%;
+  top: 50%;
+  transform: translateX(-50%) translateY(-50%);
+  z-index: 10;
+}
 
 .theme-btn {
   background: none;
@@ -198,8 +209,8 @@ header {
 #runAllBtn:disabled { background: var(--btn-dis-bg); color: var(--btn-dis-color); cursor: not-allowed; }
 
 #stopBtn {
-  background: #c62828;
-  color: white;
+  background: #ffebee;
+  color: #c62828;
   padding: 10px 22px;
   font-size: 15px;
   font-weight: 600;
@@ -210,7 +221,9 @@ header {
   white-space: nowrap;
   font-family: inherit;
 }
-#stopBtn:hover:not(:disabled) { background: #8e0000; }
+#stopBtn:hover:not(:disabled) { background: #ffcdd2; }
+.dark #stopBtn { background: #7f0000; color: #ef9a9a; }
+.dark #stopBtn:hover:not(:disabled) { background: #6a0000; }
 #stopBtn:disabled { background: var(--btn-dis-bg); color: var(--btn-dis-color); cursor: not-allowed; }
 
 .status-pill { font-size: 13px; padding: 4px 12px; border-radius: 12px; font-weight: 500; }
@@ -442,18 +455,18 @@ header {
       </linearGradient>
     </defs>
   </svg>
+  <div class="env-toggle" id="envToggle">
+    <button class="env-btn" data-env="prod" onclick="selectEnv('prod')">eastclinic.ru</button>
+    <button class="env-btn" data-env="dev" onclick="selectEnv('dev')">dev1.eastclinic.local</button>
+  </div>
   <span class="header-title">Панель автотестирования</span>
   <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">&#9790; Тёмная тема</button>
 </header>
 
 <div class="wrap">
   <div class="topbar">
-    <div class="env-toggle" id="envToggle">
-      <button class="env-btn" data-env="prod" onclick="selectEnv('prod')">eastclinic.ru</button>
-      <button class="env-btn" data-env="dev" onclick="selectEnv('dev')">dev1.eastclinic.local</button>
-    </div>
-    <button id="runAllBtn" onclick="runTests()">&#9654; Запустить все тесты</button>
-    <button id="stopBtn" onclick="stopTests()" style="display:none">&#9632; Остановить</button>
+    <button id="runAllBtn" onclick="runTests()">Запустить все тесты</button>
+    <button id="stopBtn" onclick="stopTests()" style="display:none">Остановить</button>
     <div class="stats-row">
       <span id="statusPill" class="status-pill pill-idle">Загрузка...</span>
       <span id="statsText"></span>
@@ -525,6 +538,7 @@ var PANEL_NAMES = {
   'search':                        'Поле Поиск',
   'vrach':                         'Личная страница врача',
   'otzyvy':                        'Форма: Отзывы',
+  'otzyvy-video':                  'Форма: Отзывы с видео',
   'sertifikaty':                   'Форма: Подарочный сертификат',
   'vrachi/ai-doctor-picker.test.js': 'Форма: ИИ подборщик врача',
   'vrachi':                          'Форма: ИИ подборщик врача',
@@ -1029,11 +1043,11 @@ function setRunning(r) {
   running = r;
   var btn = document.getElementById('runAllBtn');
   btn.disabled = r;
-  btn.innerHTML = r ? '<span class="spinner"></span>Выполняется...' : '&#9654; Запустить все тесты';
+  btn.innerHTML = r ? '<span class="spinner"></span>Выполняется...' : 'Запустить все тесты';
   var stopBtn = document.getElementById('stopBtn');
   stopBtn.style.display = r ? '' : 'none';
   stopBtn.disabled = false;
-  stopBtn.innerHTML = '&#9632; Остановить';
+  stopBtn.innerHTML = 'Остановить';
   document.querySelectorAll('.run-file-btn').forEach(function(b) { b.disabled = r; });
   document.querySelectorAll('.run-test-btn').forEach(function(b) { b.disabled = r; });
   document.querySelectorAll('.env-btn').forEach(function(b) { b.disabled = r; });
