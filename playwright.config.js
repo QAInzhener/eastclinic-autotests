@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
+  globalSetup: './tests/global-setup.js',
   testDir: './tests',
   timeout: 120000,
   retries: 1,
@@ -15,5 +16,6 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['json', { outputFile: 'results/last-run.json' }],
+    ['html', { open: 'never' }],
   ],
 });

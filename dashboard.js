@@ -7,6 +7,7 @@ import { dirname, join, extname, normalize } from 'path';
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = 3000;
 const LAST_RUN_PATH  = join(ROOT, 'results', 'last-run.json');
+const TEST_LIST_PATH = join(ROOT, 'results', 'test-list.json');
 const HTML_PATH = join(ROOT, 'dashboard.html');
 const REPORT_DIR = join(ROOT, 'playwright-report');
 
@@ -106,9 +107,13 @@ function mergeResults(existing, fresh, file, grep) {
     function patchSuite(suite) {
       const freshSpecs = freshByFile.get(suite.file);
       if (!freshSpecs) return suite;
+      const existingTitles = new Set((suite.specs || []).map(sp => sp.title));
       return {
         ...suite,
-        specs:  (suite.specs  || []).map(sp => freshSpecs.has(sp.title) ? freshSpecs.get(sp.title) : sp),
+        specs: [
+          ...(suite.specs || []).map(sp => freshSpecs.has(sp.title) ? freshSpecs.get(sp.title) : sp),
+          ...[...freshSpecs.values()].filter(sp => !existingTitles.has(sp.title)), // новые specs
+        ],
         suites: (suite.suites || []).map(patchSuite),
       };
     }
@@ -163,6 +168,25 @@ function saveLastLog(env) {
 
 // ---- Test runner ----
 
+const TEST_TITLE_PATTERNS = [
+  /\btest\s*\(\s*'([^'\n]+)'/,
+  /\btest\s*\(\s*"([^"\n]+)"/,
+  /\btest\s*\(\s*`([^`\n]+)`/,
+];
+
+function findTestLine(filePath, title) {
+  try {
+    const lines = readFileSync(filePath, 'utf8').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      for (const pat of TEST_TITLE_PATTERNS) {
+        const m = lines[i].match(pat);
+        if (m && m[1] === title) return i + 1;
+      }
+    }
+  } catch {}
+  return 0;
+}
+
 const ENV_URLS = {
   prod: 'https://eastclinic.ru',
   dev: 'http://dev1.eastclinic.local',
@@ -182,9 +206,15 @@ function runTests(file = '', grep = '', line = 0, env = 'prod') {
 
   const args = ['playwright', 'test'];
   if (file) {
-    // When a line number is provided, use "file:line" to run exactly that test.
-    // This avoids all shell-quoting issues with --grep and multi-word Russian titles.
-    args.push(line > 0 ? `${file}:${line}` : file);
+    // Priority: re-scan file to get fresh line number (handles stale test-list.json).
+    // Fallback: use stored line (for run tests it's spec.line from Playwright JSON — reliable).
+    // Last resort: run whole file only if both sources give 0.
+    let actualLine = line;
+    if (grep) {
+      const scanned = findTestLine(join(ROOT, file), grep);
+      if (scanned > 0) actualLine = scanned;
+    }
+    args.push(actualLine > 0 ? `${file}:${actualLine}` : file);
   }
 
   const proc = spawn('npx', args, {
@@ -269,6 +299,15 @@ const server = http.createServer(async (req, res) => {
     const data = getResults(url.searchParams.get('env'));
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     return res.end(data !== null ? JSON.stringify(data) : 'null');
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/test-list') {
+    let data = {};
+    if (existsSync(TEST_LIST_PATH)) {
+      try { data = JSON.parse(readFileSync(TEST_LIST_PATH, 'utf8')); } catch {}
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify(data));
   }
 
   if (req.method === 'GET' && url.pathname === '/api/status') {

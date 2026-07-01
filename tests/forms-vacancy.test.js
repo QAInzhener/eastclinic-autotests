@@ -30,7 +30,6 @@ async function navigateToVacancyForm(page) {
 
   // SPA-навигация на страницу вакансии
   await page.waitForURL(/vakansii\/.+/, { timeout: 15000 });
-  await page.waitForLoadState('networkidle');
   const vacancyUrl = page.url();
 
   // На странице вакансии нажимаем "Откликнуться" → прокрутка к форме

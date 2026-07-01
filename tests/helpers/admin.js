@@ -94,62 +94,82 @@ export async function publishReviewInAdmin(page, searchSnippet, doctorName = nul
   const idx = await findReviewRowIndex(page, searchSnippet, doctorName);
   if (idx < 0) throw new Error(`Строка с отзывом "${searchSnippet}" не найдена для публикации`);
 
-  const row = page.locator('tr').nth(idx);
+  // Кликаем кнопку публикации через DOM (page.evaluate надёжнее для Vue-реактивности).
+  // У видео-отзыва в строке может быть несколько чекбоксов: первый — флаг видео (уже отмечен),
+  // второй — публикация (не отмечен). Поэтому ищем именно НЕотмеченный чекбокс.
+  await page.evaluate((rowIdx) => {
+    const row = document.querySelectorAll('tr')[rowIdx];
+    if (!row) return;
+    const unchecked = [...row.querySelectorAll('input[type="checkbox"]')].find(cb => !cb.checked);
+    if (unchecked) { unchecked.click(); return; }
+    // Все чекбоксы уже отмечены или их нет — первая кнопка (тогл публикации)
+    const btn = row.querySelector('button');
+    if (btn) btn.click();
+  }, idx);
 
-  // Кнопка публикации — переключатель справа от даты публикации.
-  // Сначала пробуем чекбокс (многие SPA-админки используют hidden-checkbox под стилизованным тоглом).
-  const toggleCheckbox = row.locator('input[type="checkbox"]');
-  if (await toggleCheckbox.count() > 0) {
-    if (!await toggleCheckbox.first().isChecked()) {
-      await toggleCheckbox.first().check();
-    }
-  } else {
-    // Если чекбокса нет — первая кнопка в строке (предположительно тогл публикации)
-    await row.locator('button').first().click();
-  }
+  await page.waitForTimeout(1500);
+}
 
-  await page.waitForTimeout(1000);
+// Проверяет, включён ли тогл публикации у отзыва в таблице.
+// Возвращает true если последний чекбокс в строке отмечен (= отзыв опубликован).
+export async function isReviewPublishedInAdmin(page, searchSnippet, doctorName = null) {
+  await loginToAdmin(page);
+  const idx = await findReviewRowIndex(page, searchSnippet, doctorName);
+  if (idx < 0) return false;
+  return page.evaluate((rowIdx) => {
+    const row = document.querySelectorAll('tr')[rowIdx];
+    if (!row) return false;
+    const checkboxes = [...row.querySelectorAll('input[type="checkbox"]')];
+    if (checkboxes.length === 0) return false;
+    // Последний чекбокс в строке — всегда тогл публикации
+    // (у видео-отзывов первый = флаг видео, последний = публикация)
+    return checkboxes[checkboxes.length - 1].checked;
+  }, idx);
 }
 
 // Удаляет тестовый отзыв из админ-панели: Карандаш → Удалить → Принять.
 // Вызывать после всех проверок, чтобы не оставлять мусор в базе.
+// Если удаление не удалось — выбрасывает ошибку (вызывающий код решает, падать или предупреждать).
 export async function deleteReviewInAdmin(page, searchSnippet, doctorName = null) {
-  // loginToAdmin обеспечивает попадание на панель администратора
-  // и при необходимости повторно логинится (сессия могла истечь за время теста с видео)
-  await loginToAdmin(page);
-  // После loginToAdmin мы уже в разделе Отзывы
+  async function attempt() {
+    await loginToAdmin(page);
 
-  const idx = await findReviewRowIndex(page, searchSnippet, doctorName);
-  if (idx < 0) throw new Error(`Строка с отзывом "${searchSnippet}" не найдена для удаления`);
+    const idx = await findReviewRowIndex(page, searchSnippet, doctorName);
+    if (idx < 0) throw new Error(`Строка с отзывом "${searchSnippet}" не найдена для удаления`);
 
-  page.on('dialog', async dialog => dialog.accept());
+    page.on('dialog', async dialog => dialog.accept());
 
-  // Кнопка Карандаш (первая кнопка в строке) — открывает модал редактирования
-  await page.evaluate((rowIdx) => {
-    const row = document.querySelectorAll('tr')[rowIdx];
-    const buttons = [...row.querySelectorAll('button')];
-    if (buttons[0]) buttons[0].click();
-  }, idx);
+    await page.evaluate((rowIdx) => {
+      const row = document.querySelectorAll('tr')[rowIdx];
+      const buttons = [...row.querySelectorAll('button')];
+      if (buttons[0]) buttons[0].click();
+    }, idx);
 
-  // Ждём PrimeVue-диалога редактирования
-  await page.locator('[class*="p-dialog"]').first().waitFor({ state: 'visible', timeout: 10000 });
-  await page.waitForTimeout(1000);
+    await page.locator('[class*="p-dialog"]').first().waitFor({ state: 'visible', timeout: 10000 });
+    await page.waitForTimeout(1000);
 
-  // Прокручиваем модал вниз — кнопка «Удалить» внизу справа
-  const modal = page.locator('[class*="modal"], [role="dialog"]').first();
-  await modal.hover();
-  await page.mouse.wheel(0, 3000);
-  await page.waitForTimeout(600);
+    const modal = page.locator('[class*="modal"], [role="dialog"]').first();
+    await modal.hover();
+    await page.mouse.wheel(0, 3000);
+    await page.waitForTimeout(600);
 
-  // Нажимаем «Удалить»
-  await page.getByRole('button', { name: /удалить/i }).waitFor({ state: 'visible', timeout: 5000 });
-  await page.getByRole('button', { name: /удалить/i }).click();
+    await page.getByRole('button', { name: /удалить/i }).waitFor({ state: 'visible', timeout: 5000 });
+    await page.getByRole('button', { name: /удалить/i }).click();
 
-  // Подтверждаем «Принять»
-  await page.getByRole('button', { name: /принять/i }).waitFor({ state: 'visible', timeout: 5000 });
-  await page.getByRole('button', { name: /принять/i }).click();
+    await page.getByRole('button', { name: /принять/i }).waitFor({ state: 'visible', timeout: 5000 });
+    await page.getByRole('button', { name: /принять/i }).click();
 
-  await page.waitForTimeout(1500);
+    await page.waitForTimeout(1500);
+  }
+
+  try {
+    await attempt();
+  } catch (e) {
+    // Первая попытка не удалась — ждём 5 с и пробуем ещё раз
+    console.warn(`[admin] Первая попытка удаления не удалась (${e.message}), повтор через 5 с...`);
+    await page.waitForTimeout(5000);
+    await attempt();
+  }
 }
 
 // Проверяет, что текст отзыва виден на публичной странице сайта.

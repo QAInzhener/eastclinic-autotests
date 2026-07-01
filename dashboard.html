@@ -534,20 +534,20 @@ var PANEL_NAMES = {
   'forms-appointment.test.js':     'Формы: Запись на приём',
   'forms-doctors-clinic.test.js':  'Формы: Врачи и клиника',
   'forms-vacancy.test.js':         'Формы: Вакансии',
-  'explore-forms.test.js':         'Формы: Исследование',
   'search':                        'Поле Поиск',
   'vrach':                         'Личная страница врача',
   'otzyvy':                        'Форма: Отзывы',
   'otzyvy-video':                  'Форма: Отзывы с видео',
+  'otzyvy-video-vrach':            'Форма: Отзывы с видео (врач)',
   'sertifikaty':                   'Форма: Подарочный сертификат',
-  'vrachi/ai-doctor-picker.test.js': 'Форма: ИИ подборщик врача',
-  'vrachi':                          'Форма: ИИ подборщик врача',
+  'vrachi':                        'Форма: ИИ подборщик врача',
 };
 // ============================================================
 
 var logOpen = true;
 var logFullscreen = false;
 var testRegistry = []; // { file, grep }
+var testList = {};     // { 'folder/file.test.js': ['Test name', ...] }
 var selectedEnv = localStorage.getItem('testEnv') || 'prod';
 
 // ---- Environment ----
@@ -614,8 +614,7 @@ function getSpecStatus(spec) {
 }
 
 function getSpecTestId(spec) {
-  if (!spec.tests || !spec.tests.length) return '';
-  return spec.tests[0].id || '';
+  return spec.id || '';
 }
 
 function getSpecError(spec) {
@@ -685,7 +684,38 @@ function buildTestRows(specs, fileArg) {
       return ia - ib;
     });
   }
-  return sortedSpecs.map(function(spec) { return buildTestRowItem(spec, fileArg, blockKey); }).join('');
+  var rows = sortedSpecs.map(function(spec) { return buildTestRowItem(spec, fileArg, blockKey); }).join('');
+  rows += buildUnrunTestRows(specs, fileArg, blockKey);
+  return rows;
+}
+
+function buildUnrunTestRows(ranSpecs, fileArg, blockKey) {
+  var fileKey = fileArg.replace(/^tests[\/\\]/, '').replace(/\\/g, '/');
+  var expected = testList[fileKey];
+  if (!expected || !expected.length) return '';
+  var ranTitles = new Set(ranSpecs.map(function(s) { return s.title; }));
+  return expected
+    .filter(function(item) {
+      var title = typeof item === 'string' ? item : item.title;
+      return !ranTitles.has(title);
+    })
+    .map(function(item) {
+      var title = typeof item === 'string' ? item : item.title;
+      var line  = typeof item === 'object' ? (item.line || 0) : 0;
+      var idx = testRegistry.length;
+      testRegistry.push({ file: fileArg, grep: title, line: line, testId: null });
+      return '<div class="test-row"' +
+        ' data-block-key="' + esc(blockKey) + '"' +
+        ' data-test-key="' + esc(title) + '">' +
+        '<span class="test-drag-handle">&#8942;&#8942;</span>' +
+        '<div class="dot dot-unknown"></div>' +
+        '<div class="test-info">' +
+          '<span class="test-name">' + esc(title) + '</span>' +
+          '<span class="test-dur" style="color:#888"> · не запускался</span>' +
+        '</div>' +
+        '<button class="run-test-btn" data-idx="' + idx + '"' + (running ? ' disabled' : '') + '>&#9654;</button>' +
+      '</div>';
+    }).join('');
 }
 
 function suiteStats(specs) {
@@ -796,6 +826,11 @@ function renderSuites(data) {
         });
       }
       var innerHtml = allSpecPairs.map(function(p) { return buildTestRowItem(p.spec, p.fileArg, folder); }).join('');
+      groupSuites.forEach(function(suite) {
+        var fa = (suite.file || '').replace(/\\/g, '/');
+        var ranSpecs = flatSpecs(suite);
+        innerHtml += buildUnrunTestRows(ranSpecs, fa, folder);
+      });
 
       var folderArg = 'tests/' + folder;
       var folderDisplayName = PANEL_NAMES[folder] || folder;
@@ -812,6 +847,34 @@ function renderSuites(data) {
         '<div class="suite-body" id="body-' + suiteId + '">' + innerHtml + '</div>' +
       '</div>';
     }
+  });
+
+  // Добавляем блоки для всех записей PANEL_NAMES, у которых нет результатов
+  var renderedKeys = {};
+  groupOrder.forEach(function(k) { renderedKeys[k] = true; });
+
+  Object.keys(PANEL_NAMES).forEach(function(panelKey) {
+    // Файловые записи (homepage.test.js) в groupOrder хранятся с префиксом '__'
+    var isFile = panelKey.indexOf('.') >= 0;
+    var renderedKey = isFile ? '__' + panelKey : panelKey;
+    if (renderedKeys[renderedKey]) return; // уже отрендерен из результатов
+
+    var suiteId = 'suite' + hashCode(panelKey);
+    var fileArg = 'tests/' + panelKey;
+    var displayName = PANEL_NAMES[panelKey];
+
+    html += '<div class="suite" data-key="' + esc(panelKey) + '">' +
+      '<div class="suite-hdr" onclick="toggleSuite(\'' + suiteId + '\')">' +
+        '<span class="drag-handle" title="Перетащить">&#8942;&#8942;</span>' +
+        '<span class="suite-icon" id="icon-' + suiteId + '">&#9658;</span>' +
+        '<span class="suite-name">' + esc(displayName) + '</span>' +
+        '<span class="suite-badge bg-none">не запускался</span>' +
+        '<button class="run-file-btn" id="runfile-' + suiteId + '"' +
+                ' onclick="event.stopPropagation();runTests(\'' + esc(fileArg) + '\')"' +
+                (running ? ' disabled' : '') + '>&#9654; Запустить</button>' +
+      '</div>' +
+      '<div class="suite-body" id="body-' + suiteId + '"></div>' +
+    '</div>';
   });
 
   container.innerHTML = html;
@@ -1066,7 +1129,12 @@ function stopTests() {
 }
 
 function loadResults() {
-  fetch('/api/results?env=' + selectedEnv).then(function(r) { return r.json(); }).then(function(data) {
+  Promise.all([
+    fetch('/api/results?env=' + selectedEnv).then(function(r) { return r.json(); }).catch(function() { return null; }),
+    fetch('/api/test-list').then(function(r) { return r.json(); }).catch(function() { return {}; }),
+  ]).then(function(results) {
+    testList = results[1] || {};
+    var data = results[0];
     renderSuites(data);
     renderStats(data);
   }).catch(function(e) { console.error('Ошибка загрузки результатов:', e); });

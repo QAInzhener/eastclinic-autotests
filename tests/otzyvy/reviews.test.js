@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { checkReviewInAdmin } from '../helpers/admin.js';
+import { checkReviewInAdmin, deleteReviewInAdmin, isReviewPublishedInAdmin } from '../helpers/admin.js';
 import { BASE_URL } from '../helpers/config.js';
 
 const TEST_NAME = 'Тест Тестов';
@@ -40,34 +40,66 @@ test('Форма "Написать отзыв" — открывается', asyn
 
 test('Форма "Написать отзыв" — заполняется, отправляется, публикуется и отображается на странице отзывов', async ({ page }) => {
   test.setTimeout(360000);
+  let reviewSubmitted = false;
+  let reviewPublished = false;
 
-  // 1. Отправляем отзыв с публичной страницы
-  await openReviewModal(page);
+  try {
+    // 1. Отправляем отзыв с публичной страницы
+    await openReviewModal(page);
 
-  const form = page.locator('.reviews-form-container');
-  await form.locator('div.stars svg.star').nth(3).click(); // 4 звезды
-  await form.locator('textarea.review-input').fill(REVIEW_TEXT);
-  await form.locator('input[name="fio"]').fill(TEST_NAME);
-  await form.locator('input[name="phone"]').click();
-  await page.keyboard.type(TEST_PHONE);
-  const checkbox = form.locator('input[name="agreeCheckbox"]');
-  if (!await checkbox.isChecked()) await checkbox.check();
-  await form.locator('button.send-review-button').click();
+    const form = page.locator('.reviews-form-container');
+    await form.locator('div.stars svg.star').nth(3).click(); // 4 звезды
+    await form.locator('textarea.review-input').fill(REVIEW_TEXT);
+    await form.locator('input[name="fio"]').fill(TEST_NAME);
+    await form.locator('input[name="phone"]').click();
+    await page.keyboard.type(TEST_PHONE);
+    const checkbox = form.locator('input[name="agreeCheckbox"]');
+    if (!await checkbox.isChecked()) await checkbox.check();
+    await form.locator('button.send-review-button').click();
+    reviewSubmitted = true;
+    await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 10000 });
+    console.log('[test] ✓ Отзыв отправлен');
 
-  await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 10000 });
-  console.log('[test] ✓ Отзыв отправлен');
+    // 2. Ждём появления отзыва в панели администратора
+    // Отзывы с dev1 попадают в ту же базу что и prod — проверка и удаление нужны всегда.
+    await checkReviewInAdmin(page, REVIEW_SNIPPET);
+    console.log('[test] ✓ Отзыв найден в панели администратора');
 
-  // 2. Ждём появления отзыва в панели администратора
-  // Отзывы с dev1 попадают в ту же базу что и prod — проверка и удаление нужны всегда.
-  await checkReviewInAdmin(page, REVIEW_SNIPPET);
-  console.log('[test] ✓ Отзыв найден в панели администратора');
+    // 3. Публикуем и проверяем на публичной странице
+    reviewPublished = true;
+    await publishAndVerify(page);
 
-  // 3. Публикуем и проверяем на публичной странице
-  await publishAndVerify(page);
-
-  // 4. Удаляем тестовый отзыв
-  await deleteTestReview(page);
-  console.log('[test] ✓ Тестовый отзыв удалён');
+  } finally {
+    if (reviewSubmitted) {
+      try {
+        if (reviewPublished) {
+          const actuallyPublished = await isReviewPublishedInAdmin(page, REVIEW_SNIPPET);
+          await deleteReviewInAdmin(page, REVIEW_SNIPPET);
+          if (actuallyPublished) {
+            console.log('[test] ✓ Тестовый отзыв удалён');
+          } else {
+            console.warn(
+              '\n⚠️  Удалён, но НЕОПУБЛИКОВАН.\n' +
+              '   Тогл публикации в админке был выключен — публикация не сработала.\n'
+            );
+          }
+        } else {
+          await deleteReviewInAdmin(page, REVIEW_SNIPPET);
+          console.warn(
+            '\n⚠️  Удалён, до ПУБЛИКАЦИИ.\n' +
+            '   Тест упал раньше шага публикации.\n'
+          );
+        }
+      } catch (e) {
+        console.warn(
+          '\n⚠️  ВНИМАНИЕ: тестовый отзыв НЕ удалён из панели администратора!\n' +
+          `   Текст: "${REVIEW_TEXT}"\n` +
+          `   Причина: ${e.message}\n` +
+          '   Удалите отзыв вручную, чтобы не загрязнять базу.\n'
+        );
+      }
+    }
+  }
 });
 
 // Находит строку с тестовым отзывом в таблице и возвращает её индекс.
@@ -176,62 +208,3 @@ async function publishAndVerify(page) {
   console.log('[test] ✓ Тестовый отзыв виден в списке на /otzyvy');
 }
 
-async function deleteTestReview(page) {
-  // Возвращаемся в раздел Отзывы в панели администратора
-  await page.goto('https://eastclinic.ru/nimda-panel/');
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000);
-  await page.getByRole('link', { name: 'Отзывы' }).click();
-  await page.waitForFunction(
-    () => [...document.querySelectorAll('th')].some(th => th.textContent.trim() === 'Отзыв'),
-    { timeout: 15000 }
-  );
-  await page.waitForTimeout(500);
-
-  const info = await findReviewRow(page);
-
-  // Убеждаемся, что текст в строке совпадает с тестовым отзывом — удалять можно только его
-  const rowText = await page.evaluate(
-    (idx) => document.querySelectorAll('tr')[idx]?.innerText || '',
-    info.idx
-  );
-  if (!rowText.includes(REVIEW_TEXT)) {
-    throw new Error('Текст в найденной строке не совпадает с тестовым отзывом — удаление отменено');
-  }
-
-  // Регистрируем обработчик нативного диалога «Подтвердить действие на eastclinic.ru»
-  page.on('dialog', async dialog => {
-    console.log('[dialog] Подтверждаю:', dialog.message().slice(0, 80));
-    await dialog.accept();
-  });
-
-  // Нажимаем кнопку Карандаш (первая кнопка в строке) — открывает «Редактирование отзыва»
-  await page.evaluate((rowIdx) => {
-    const row = document.querySelectorAll('tr')[rowIdx];
-    const buttons = [...row.querySelectorAll('button')];
-    buttons[0].click();
-  }, info.idx);
-
-  // Ждём открытия PrimeVue-диалога (в этой админке называется «Создание нового отзыва»)
-  await page.locator('[class*="p-dialog"]').first().waitFor({ state: 'visible', timeout: 10000 });
-  await page.waitForTimeout(1000); // даём форме загрузить данные отзыва
-  console.log('[admin] Окно редактирования отзыва открылось');
-
-  // Прокручиваем содержимое модала колёсиком мыши вниз — кнопка «Удалить» внизу справа
-  const modal = page.locator('[class*="modal"], [role="dialog"]').first();
-  await modal.hover();
-  await page.mouse.wheel(0, 3000);
-  await page.waitForTimeout(600);
-
-  // Нажимаем кнопку «Удалить» (внизу справа в модале редактирования)
-  await page.getByRole('button', { name: /удалить/i }).waitFor({ state: 'visible', timeout: 5000 });
-  await page.getByRole('button', { name: /удалить/i }).click();
-  console.log('[admin] Нажал «Удалить»');
-
-  // В окне «Удалить отзыв» нажимаем «Принять»
-  await page.getByRole('button', { name: /принять/i }).waitFor({ state: 'visible', timeout: 5000 });
-  await page.getByRole('button', { name: /принять/i }).click();
-  console.log('[admin] ✓ Тестовый отзыв удалён');
-
-  await page.waitForTimeout(1500);
-}

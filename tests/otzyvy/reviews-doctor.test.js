@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { checkReviewInAdminWithDoctor } from '../helpers/admin.js';
+import { checkReviewInAdminWithDoctor, deleteReviewInAdmin, isReviewPublishedInAdmin } from '../helpers/admin.js';
 import { BASE_URL } from '../helpers/config.js';
 
 const TEST_NAME    = 'Тест Тестов';
@@ -116,136 +116,111 @@ async function checkOnReviewsPage(page) {
   console.log('[test] ✓ Отзыв виден на общей странице /otzyvy');
 }
 
-async function deleteReview(page, doctorName) {
-  await page.goto('https://eastclinic.ru/nimda-panel/');
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000);
-  await page.getByRole('link', { name: 'Отзывы' }).click();
-  await page.waitForFunction(
-    () => [...document.querySelectorAll('th')].some(th => th.textContent.trim() === 'Отзыв'),
-    { timeout: 15000 }
-  );
-  await page.waitForTimeout(500);
-
-  const info = await findReviewRow(page, doctorName);
-
-  // Убеждаемся, что текст строки совпадает с тестовым отзывом
-  const rowText = await page.evaluate(
-    (idx) => document.querySelectorAll('tr')[idx]?.innerText || '',
-    info.idx
-  );
-  if (!rowText.includes(REVIEW_TEXT)) {
-    throw new Error('Текст в строке не совпадает с тестовым отзывом — удаление отменено');
-  }
-
-  // Регистрируем обработчик нативного диалога «Подтвердить действие на eastclinic.ru»
-  page.on('dialog', async dialog => {
-    console.log('[dialog] Подтверждаю:', dialog.message().slice(0, 80));
-    await dialog.accept();
-  });
-
-  // Кнопка Карандаш — первая кнопка в строке
-  await page.evaluate((rowIdx) => {
-    const row = document.querySelectorAll('tr')[rowIdx];
-    const buttons = [...row.querySelectorAll('button')];
-    buttons[0].click();
-  }, info.idx);
-
-  // Ждём PrimeVue-диалог редактирования
-  await page.locator('[class*="p-dialog"]').first().waitFor({ state: 'visible', timeout: 10000 });
-  await page.waitForTimeout(1000);
-  console.log('[admin] Окно редактирования отзыва открылось');
-
-  // Прокручиваем модал колёсиком мыши вниз — кнопка «Удалить» внизу справа
-  const modal = page.locator('[class*="p-dialog"]').first();
-  await modal.hover();
-  await page.mouse.wheel(0, 3000);
-  await page.waitForTimeout(600);
-
-  // Нажимаем «Удалить»
-  await page.getByRole('button', { name: /удалить/i }).waitFor({ state: 'visible', timeout: 5000 });
-  await page.getByRole('button', { name: /удалить/i }).click();
-  console.log('[admin] Нажал «Удалить»');
-
-  // В окне «Удалить отзыв» нажимаем «Принять»
-  await page.getByRole('button', { name: /принять/i }).waitFor({ state: 'visible', timeout: 5000 });
-  await page.getByRole('button', { name: /принять/i }).click();
-  console.log('[admin] ✓ Тестовый отзыв удалён');
-
-  await page.waitForTimeout(1500);
-}
-
 // --- Тест ---
 
 test('Форма отзыва с личной страницы врача — заполняется, отправляется, публикуется и удаляется', async ({ page }) => {
   test.setTimeout(360000);
+  let reviewSubmitted = false;
+  let reviewPublished = false;
+  let doctorName = null;
 
-  // 1. Открываем список врачей
-  await page.goto(VRACHI_PAGE);
-  await page.waitForLoadState('networkidle');
-  await acceptCookies(page);
+  try {
+    // 1. Открываем список врачей
+    await page.goto(VRACHI_PAGE);
+    await page.waitForLoadState('networkidle');
+    await acceptCookies(page);
 
-  // 2. Запоминаем количество карточек до «Показать еще»
-  const countBefore = await page.evaluate(() =>
-    document.querySelectorAll('.doctor-info-container').length
-  );
+    // 2. Запоминаем количество карточек до «Показать еще»
+    const countBefore = await page.evaluate(() =>
+      document.querySelectorAll('.doctor-info-container').length
+    );
 
-  // 3. Показываем следующую порцию врачей
-  const moreBtn = page.locator('button.more-button').first();
-  await moreBtn.scrollIntoViewIfNeeded();
-  await moreBtn.click();
-  await page.waitForFunction(
-    (prev) => document.querySelectorAll('.doctor-info-container').length > prev,
-    countBefore,
-    { timeout: 10000 }
-  );
+    // 3. Показываем следующую порцию врачей
+    const moreBtn = page.locator('button.more-button').first();
+    await moreBtn.scrollIntoViewIfNeeded();
+    await moreBtn.click();
+    await page.waitForFunction(
+      (prev) => document.querySelectorAll('.doctor-info-container').length > prev,
+      countBefore,
+      { timeout: 10000 }
+    );
 
-  // 4. Берём ссылку первой новой карточки
-  const doctorHref = await page.evaluate((idx) => {
-    const containers = [...document.querySelectorAll('.doctor-info-container')];
-    return containers[idx]?.querySelector('a[href*="/vrach/"]')?.href || null;
-  }, countBefore);
-  if (!doctorHref) throw new Error('Не найдена карточка врача после «Показать еще»');
+    // 4. Берём ссылку первой новой карточки
+    const doctorHref = await page.evaluate((idx) => {
+      const containers = [...document.querySelectorAll('.doctor-info-container')];
+      return containers[idx]?.querySelector('a[href*="/vrach/"]')?.href || null;
+    }, countBefore);
+    if (!doctorHref) throw new Error('Не найдена карточка врача после «Показать еще»');
 
-  // 5. Переходим на личную страницу врача
-  await page.goto(doctorHref, { waitUntil: 'networkidle', timeout: 30000 });
+    // 5. Переходим на личную страницу врача
+    await page.goto(doctorHref, { waitUntil: 'networkidle', timeout: 30000 });
 
-  // 6. Читаем ФИО врача — нужно для поиска строки в таблице администратора
-  const doctorName = (await page.locator('h1').first().textContent()).trim();
-  console.log('[test] Врач:', doctorName);
+    // 6. Читаем ФИО врача — нужно для поиска строки в таблице администратора
+    doctorName = (await page.locator('h1').first().textContent()).trim();
+    console.log('[test] Врач:', doctorName);
 
-  // 7. Открываем форму отзыва
-  const reviewBtn = page.locator('button.total-reviews-button');
-  await reviewBtn.scrollIntoViewIfNeeded();
-  await reviewBtn.click();
-  await page.locator('.reviews-form-container').waitFor({ state: 'visible', timeout: 8000 });
+    // 7. Открываем форму отзыва
+    const reviewBtn = page.locator('button.total-reviews-button');
+    await reviewBtn.scrollIntoViewIfNeeded();
+    await reviewBtn.click();
+    await page.locator('.reviews-form-container').waitFor({ state: 'visible', timeout: 8000 });
 
-  // 8. Заполняем форму (3 звезды)
-  const form = page.locator('.reviews-form-container');
-  await form.locator('div.stars svg.star').nth(2).click();
-  await form.locator('textarea.review-input').fill(REVIEW_TEXT);
-  await form.locator('input[name="fio"]').fill(TEST_NAME);
-  await form.locator('input[name="phone"]').click();
-  await page.keyboard.type(TEST_PHONE);
-  const checkbox = form.locator('input[name="agreeCheckbox"]');
-  if (!await checkbox.isChecked()) await checkbox.check();
-  await form.locator('button.send-review-button').click();
+    // 8. Заполняем форму (3 звезды)
+    const form = page.locator('.reviews-form-container');
+    await form.locator('div.stars svg.star').nth(2).click();
+    await form.locator('textarea.review-input').fill(REVIEW_TEXT);
+    await form.locator('input[name="fio"]').fill(TEST_NAME);
+    await form.locator('input[name="phone"]').click();
+    await page.keyboard.type(TEST_PHONE);
+    const checkbox = form.locator('input[name="agreeCheckbox"]');
+    if (!await checkbox.isChecked()) await checkbox.check();
+    await form.locator('button.send-review-button').click();
+    reviewSubmitted = true;
 
-  // 9. Форма скрывается после успешной отправки
-  await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 10000 });
-  console.log('[test] ✓ Отзыв отправлен');
+    // 9. Форма скрывается после успешной отправки
+    await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 10000 });
+    console.log('[test] ✓ Отзыв отправлен');
 
-  // 10. Ждём появления отзыва в панели администратора
-  // Отзывы с dev1 попадают в ту же базу что и prod — проверка и удаление нужны всегда.
-  await checkReviewInAdminWithDoctor(page, REVIEW_SNIPPET, doctorName);
-  console.log('[test] ✓ Отзыв найден в панели администратора');
+    // 10. Ждём появления отзыва в панели администратора
+    // Отзывы с dev1 попадают в ту же базу что и prod — проверка и удаление нужны всегда.
+    await checkReviewInAdminWithDoctor(page, REVIEW_SNIPPET, doctorName);
+    console.log('[test] ✓ Отзыв найден в панели администратора');
 
-  // 11–13. Публикуем и проверяем на публичных страницах
-  await publishReview(page, doctorName);
-  await checkOnDoctorPage(page, doctorHref);
-  await checkOnReviewsPage(page);
+    // 11–13. Публикуем и проверяем на публичных страницах
+    reviewPublished = true;
+    await publishReview(page, doctorName);
+    await checkOnDoctorPage(page, doctorHref);
+    await checkOnReviewsPage(page);
 
-  // 14. Удаляем тестовый отзыв
-  await deleteReview(page, doctorName);
-  console.log('[test] ✓ Тестовый отзыв удалён');
+  } finally {
+    if (reviewSubmitted) {
+      try {
+        if (reviewPublished) {
+          const actuallyPublished = await isReviewPublishedInAdmin(page, REVIEW_SNIPPET, doctorName);
+          await deleteReviewInAdmin(page, REVIEW_SNIPPET, doctorName);
+          if (actuallyPublished) {
+            console.log('[test] ✓ Тестовый отзыв удалён');
+          } else {
+            console.warn(
+              '\n⚠️  Удалён, но НЕОПУБЛИКОВАН.\n' +
+              '   Тогл публикации в админке был выключен — публикация не сработала.\n'
+            );
+          }
+        } else {
+          await deleteReviewInAdmin(page, REVIEW_SNIPPET, doctorName);
+          console.warn(
+            '\n⚠️  Удалён, до ПУБЛИКАЦИИ.\n' +
+            '   Тест упал раньше шага публикации.\n'
+          );
+        }
+      } catch (e) {
+        console.warn(
+          '\n⚠️  ВНИМАНИЕ: тестовый отзыв НЕ удалён из панели администратора!\n' +
+          `   Текст: "${REVIEW_TEXT}"\n` +
+          `   Причина: ${e.message}\n` +
+          '   Удалите отзыв вручную, чтобы не загрязнять базу.\n'
+        );
+      }
+    }
+  }
 });
