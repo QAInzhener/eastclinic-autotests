@@ -86,7 +86,7 @@ export async function checkReviewInAdminWithDoctor(page, searchSnippet, doctorNa
   );
 }
 
-// Публикует отзыв в админ-панели: находит строку и включает кнопку публикации (становится зелёной).
+// Публикует отзыв в админ-панели: находит строку и включает тогл публикации.
 // Вызывать после checkReviewInAdmin / checkReviewInAdminWithDoctor — мы уже в разделе Отзывы.
 export async function publishReviewInAdmin(page, searchSnippet, doctorName = null) {
   await goToReviews(page);
@@ -94,18 +94,31 @@ export async function publishReviewInAdmin(page, searchSnippet, doctorName = nul
   const idx = await findReviewRowIndex(page, searchSnippet, doctorName);
   if (idx < 0) throw new Error(`Строка с отзывом "${searchSnippet}" не найдена для публикации`);
 
-  // Кликаем кнопку публикации через DOM (page.evaluate надёжнее для Vue-реактивности).
-  // У видео-отзыва в строке может быть несколько чекбоксов: первый — флаг видео (уже отмечен),
-  // второй — публикация (не отмечен). Поэтому ищем именно НЕотмеченный чекбокс.
-  await page.evaluate((rowIdx) => {
+  // Проверяем текущее состояние — последний чекбокс в строке всегда тогл публикации.
+  // Если уже опубликован — не трогаем (иначе отключим публикацию).
+  const alreadyPublished = await page.evaluate((rowIdx) => {
     const row = document.querySelectorAll('tr')[rowIdx];
-    if (!row) return;
-    const unchecked = [...row.querySelectorAll('input[type="checkbox"]')].find(cb => !cb.checked);
-    if (unchecked) { unchecked.click(); return; }
-    // Все чекбоксы уже отмечены или их нет — первая кнопка (тогл публикации)
-    const btn = row.querySelector('button');
-    if (btn) btn.click();
+    if (!row) return false;
+    const cbs = [...row.querySelectorAll('input[type="checkbox"]')];
+    return cbs.length > 0 && cbs[cbs.length - 1].checked;
   }, idx);
+
+  if (alreadyPublished) return;
+
+  // PrimeVue InputSwitch/ToggleSwitch рендерится как role="switch".
+  // Используем Playwright click — он правильно bubbles события для Vue-реактивности.
+  const row = page.locator('tr').nth(idx);
+  const switches = row.getByRole('switch');
+  if (await switches.count() > 0) {
+    await switches.last().click({ force: true });
+  } else {
+    // Fallback: кликаем последний чекбокс через DOM
+    await page.evaluate((rowIdx) => {
+      const row = document.querySelectorAll('tr')[rowIdx];
+      const cbs = [...row.querySelectorAll('input[type="checkbox"]')];
+      if (cbs.length > 0 && !cbs[cbs.length - 1].checked) cbs[cbs.length - 1].click();
+    }, idx);
+  }
 
   await page.waitForTimeout(1500);
 }

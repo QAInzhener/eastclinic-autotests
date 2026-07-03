@@ -13,7 +13,7 @@ const TEST_NAME    = 'Тест Тестов';
 const TEST_PHONE   = '4444444444';
 const REVIEWS_PAGE = BASE_URL + '/otzyvy';
 const REVIEW_TEXT  = 'Проверка отправки отзыва с видео — автотестирование';
-const REVIEW_SNIPPET = 'отзыва с видео';
+const REVIEW_SNIPPET = 'отзыва с видео — автотестирование';
 
 async function acceptCookies(page) {
   try {
@@ -25,7 +25,7 @@ async function acceptCookies(page) {
 
 async function openReviewModal(page) {
   await page.goto(REVIEWS_PAGE);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await acceptCookies(page);
   const btn = page.locator('button.total-reviews-button');
   await btn.waitFor({ state: 'visible', timeout: 8000 });
