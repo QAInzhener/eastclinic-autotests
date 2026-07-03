@@ -1,7 +1,5 @@
-// node run-and-capture.js <env> — запускает все тесты и пишет лог для панели
-// env = 'dev' | 'prod'
-const { spawn } = require('child_process');
-const { readFileSync, writeFileSync, existsSync } = require('fs');
+import { spawn } from 'child_process';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 
 const env = process.argv[2] || 'prod';
 const isDev = env === 'dev';
