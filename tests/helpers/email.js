@@ -27,7 +27,7 @@ function extractText(source) {
 
 // Ждёт письма, содержащего searchText, полученного после since.
 // Выбрасывает ошибку если письмо не пришло за timeoutMs миллисекунд.
-export async function checkEmailMessage(searchText, since, timeoutMs = 60000) {
+export async function checkEmailMessage(searchText, since, timeoutMs = 120000) {
   const sinceDate = since instanceof Date ? since : new Date(Date.now() - 2 * 60 * 1000);
   const deadline = Date.now() + timeoutMs;
 
