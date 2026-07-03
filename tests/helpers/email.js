@@ -27,12 +27,7 @@ function extractText(source) {
 
 // Ждёт письма, содержащего searchText, полученного после since.
 // Выбрасывает ошибку если письмо не пришло за timeoutMs миллисекунд.
-// На dev1 проверка пропускается — dev1 не отправляет реальные письма.
 export async function checkEmailMessage(searchText, since, timeoutMs = 60000) {
-  if ((process.env.TEST_BASE_URL || '').includes('dev1')) {
-    console.log(`[email] пропуск проверки письма на dev1 (текст: "${searchText}")`);
-    return true;
-  }
   const sinceDate = since instanceof Date ? since : new Date(Date.now() - 2 * 60 * 1000);
   const deadline = Date.now() + timeoutMs;
 
