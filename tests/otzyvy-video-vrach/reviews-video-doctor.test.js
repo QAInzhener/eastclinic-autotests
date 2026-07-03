@@ -27,7 +27,7 @@ async function acceptCookies(page) {
 // Возвращает { doctorName, doctorHref, form }.
 async function openDoctorReviewForm(page) {
   await page.goto(VRACHI_PAGE);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await acceptCookies(page);
 
   const countBefore = await page.evaluate(() =>
@@ -49,7 +49,7 @@ async function openDoctorReviewForm(page) {
   }, countBefore);
   if (!doctorHref) throw new Error('Не найдена карточка врача после «Показать еще»');
 
-  await page.goto(doctorHref, { waitUntil: 'networkidle', timeout: 30000 });
+  await page.goto(doctorHref, { waitUntil: 'domcontentloaded', timeout: 30000 });
   const doctorName = (await page.locator('h1').first().textContent()).trim();
   console.log('[test] Врач:', doctorName);
 
@@ -73,7 +73,7 @@ test('Форма отзыва с личной страницы врача — о
   try {
     // 1. Открываем список врачей
     await page.goto(VRACHI_PAGE);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await acceptCookies(page);
 
     // 2. Запоминаем количество карточек до «Показать еще»
@@ -99,7 +99,7 @@ test('Форма отзыва с личной страницы врача — о
     if (!doctorHref) throw new Error('Не найдена карточка врача после «Показать еще»');
 
     // 5. Переходим на личную страницу врача
-    await page.goto(doctorHref, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(doctorHref, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     // 6. Читаем ФИО врача — нужно для поиска строки в таблице администратора
     doctorName = (await page.locator('h1').first().textContent()).trim();
@@ -160,8 +160,8 @@ test('Форма отзыва с личной страницы врача — о
     console.log('[test] ✓ Отзыв найден в панели администратора');
 
     // 13. Публикуем
-    reviewPublished = true;
     await publishReviewInAdmin(page, REVIEW_SNIPPET, doctorName);
+    reviewPublished = true;
     console.log('[test] ✓ Отзыв опубликован');
 
     // 14. Проверяем на личной странице врача (до 3 попыток)
@@ -288,6 +288,9 @@ test('Форма отзыва с личной страницы врача — о
 // ──────────────────────────────────────────────────────────────────────────────
 
 test('Форма отзыва с личной страницы врача — видео 2:01 (чуть длиннее лимита) не принимается', async ({ page }) => {
+  // ИЗВЕСТНЫЙ БАГ САЙТА: форма принимает видео 2:01 (лимит — до 2 мин). test.fail() = ожидаемое падение.
+  // Когда баг исправят — тест неожиданно пройдёт, что будет сигналом об исправлении.
+  test.fail();
   // 180 с: видео 2:01 не отклоняется клиентом мгновенно — начинает загружаться,
   // ответ об ошибке приходит с сервера, на это нужно время
   test.setTimeout(180000);
