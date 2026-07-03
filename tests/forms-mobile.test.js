@@ -38,7 +38,7 @@ test('Мобильная форма "Записаться на приём" (ни
 
   const doctorUrl = await getFirstDoctorUrl(page);
   await page.goto(doctorUrl);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 
   // Нижний закреп "Записаться на приём"
   const bottomBtn = page.locator('button.banner-button').filter({ hasText: /записаться на приём/i });
@@ -55,7 +55,7 @@ test('Мобильная форма "Записаться на приём" (ни
 
   const doctorUrl = await getFirstDoctorUrl(page);
   await page.goto(doctorUrl);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 
   // Нажимаем нижний закреп "Записаться на приём"
   const bottomBtn = page.locator('button.banner-button').filter({ hasText: /записаться на приём/i });
