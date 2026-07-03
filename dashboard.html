@@ -161,6 +161,7 @@ header .env-toggle {
 .c-skip { color: #e65100; }
 .c-total { color: #1565c0; }
 .run-time { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+.run-time.timer-active { color: var(--text); }
 
 .env-toggle {
   display: flex;
@@ -601,15 +602,18 @@ function fmt(ms) {
 function startTimer() {
   runStartTime = Date.now();
   clearInterval(runTimerInterval);
+  var el = document.getElementById('runTime');
+  el.classList.add('timer-active');
   runTimerInterval = setInterval(function() {
     document.getElementById('runTime').textContent = '⏱ ' + fmt(Date.now() - runStartTime);
   }, 1000);
-  document.getElementById('runTime').textContent = '⏱ 0 с';
+  el.textContent = '⏱ 0 с';
 }
 
 function stopTimer() {
   clearInterval(runTimerInterval);
   runTimerInterval = null;
+  document.getElementById('runTime').classList.remove('timer-active');
 }
 
 function esc(str) {
