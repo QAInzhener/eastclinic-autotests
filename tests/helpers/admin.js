@@ -14,7 +14,7 @@ async function goToReviews(page) {
 
 async function loginToAdmin(page) {
   await page.goto('https://eastclinic.ru/nimda-panel/');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(2000);
 
   const passInput = page.locator('input[type="password"]');
