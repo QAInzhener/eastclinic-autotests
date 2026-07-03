@@ -333,6 +333,49 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({ stopped }));
   }
 
+  // Internal API for cron/run-and-capture.js — notifies dashboard of external test runs
+  if (req.method === 'POST' && url.pathname === '/api/internal/start') {
+    const body = await parseBody(req);
+    if (!isRunning) {
+      isRunning = true;
+      currentFile = '';
+      currentGrep = '';
+      currentEnv = normEnv(body.env || 'prod');
+      currentLogText = '';
+      currentLogLabel = body.label || ('все тесты (' + (ENV_URLS[currentEnv] || '').replace(/^https?:\/\//, '') + ')');
+      stopRequested = false;
+      broadcast('start', { file: 'все тесты', grep: '', env: currentEnv, baseUrl: ENV_URLS[currentEnv] });
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true }));
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/internal/log') {
+    const body = await parseBody(req);
+    if (body.text) {
+      currentLogText += body.text;
+      broadcast('log', { text: body.text });
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true }));
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/internal/done') {
+    const body = await parseBody(req);
+    if (isRunning) {
+      isRunning = false;
+      currentProc = null;
+      saveLastLog(currentEnv);
+      // run-and-capture.js already merged results into all-results file;
+      // just recalculate stats so the panel gets fresh counts
+      const existing = getResults(currentEnv);
+      if (existing) saveAllResults(existing, currentEnv);
+      broadcast('done', { code: body.code || 0, stopped: false });
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true }));
+  }
+
   if (req.method === 'GET' && url.pathname.startsWith('/report/')) {
     let rel = url.pathname.slice('/report/'.length) || 'index.html';
     if (rel === '' || rel.endsWith('/')) rel += 'index.html';

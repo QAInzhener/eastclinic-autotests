@@ -521,6 +521,8 @@ applyPin();
 
 // ---- State ----
 var running = false;
+var runStartTime = 0;
+var runTimerInterval = null;
 // ============================================================
 // НАЗВАНИЯ БЛОКОВ В ПАНЕЛИ
 // Ключ — имя файла или папки (как оно приходит из результатов).
@@ -594,6 +596,20 @@ function fmt(ms) {
   if (ms < 1000) return ms + ' мс';
   if (ms < 60000) return (ms / 1000).toFixed(1) + ' с';
   return Math.floor(ms / 60000) + ' м ' + Math.floor((ms % 60000) / 1000) + ' с';
+}
+
+function startTimer() {
+  runStartTime = Date.now();
+  clearInterval(runTimerInterval);
+  runTimerInterval = setInterval(function() {
+    document.getElementById('runTime').textContent = '⏱ ' + fmt(Date.now() - runStartTime);
+  }, 1000);
+  document.getElementById('runTime').textContent = '⏱ 0 с';
+}
+
+function stopTimer() {
+  clearInterval(runTimerInterval);
+  runTimerInterval = null;
 }
 
 function esc(str) {
@@ -1118,6 +1134,8 @@ function setRunning(r) {
     var pill = document.getElementById('statusPill');
     pill.className = 'status-pill pill-running';
     pill.textContent = 'Запущены...';
+  } else {
+    stopTimer();
   }
 }
 
@@ -1178,6 +1196,7 @@ evtSource.addEventListener('connected', function() {
 evtSource.addEventListener('start', function(e) {
   var data = JSON.parse(e.data);
   setRunning(true);
+  startTimer();
   var name = data.grep ? data.grep
     : (data.file && data.file !== 'все тесты' ? data.file.replace(/^tests[\/\\]/, '') : 'все тесты');
   var envLabel = data.baseUrl ? ' (' + data.baseUrl.replace(/^https?:\/\//, '') + ')' : '';
@@ -1221,6 +1240,7 @@ evtSource.addEventListener('done', function(e) {
     pill.textContent = 'Есть ошибки ✗';
   }
   loadResults();
+  loadLog();
 });
 
 evtSource.onerror = function() {

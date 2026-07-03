@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
+import http from 'http';
 
 const env = process.argv[2] || 'prod';
 const isDev = env === 'dev';
@@ -10,16 +11,46 @@ const resultsFile = 'results/all-results-' + (isDev ? 'dev' : 'prod') + '.json';
 
 let output = '';
 
+// Sends a notification to the running dashboard.js server (silently ignored if not running)
+function notifyDashboard(path, body) {
+  const data = JSON.stringify(body);
+  const req = http.request(
+    { hostname: 'localhost', port: 3000, path, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } },
+    res => res.resume()
+  );
+  req.on('error', () => {});
+  req.write(data);
+  req.end();
+}
+
+// Buffer log chunks to avoid flooding dashboard with tiny HTTP requests
+let logBuffer = '';
+let logFlushTimer = null;
+function flushLogBuffer() {
+  if (logBuffer) { notifyDashboard('/api/internal/log', { text: logBuffer }); logBuffer = ''; }
+  logFlushTimer = null;
+}
+function queueLog(text) {
+  logBuffer += text;
+  if (!logFlushTimer) logFlushTimer = setTimeout(flushLogBuffer, 250);
+}
+
+notifyDashboard('/api/internal/start', { env, label });
+
 const proc = spawn('npx', ['playwright', 'test', '--retries=1'], {
   shell: true,
   cwd: process.cwd(),
   env: { ...process.env, TEST_BASE_URL: baseUrl },
 });
 
-proc.stdout.on('data', chunk => { output += chunk.toString(); process.stdout.write(chunk); });
-proc.stderr.on('data', chunk => { output += chunk.toString(); process.stderr.write(chunk); });
+proc.stdout.on('data', chunk => { const t = chunk.toString(); output += t; process.stdout.write(chunk); queueLog(t); });
+proc.stderr.on('data', chunk => { const t = chunk.toString(); output += t; process.stderr.write(chunk); queueLog(t); });
 
 proc.on('close', code => {
+  clearTimeout(logFlushTimer);
+  if (logBuffer) { notifyDashboard('/api/internal/log', { text: logBuffer }); logBuffer = ''; }
+
   try {
     writeFileSync(logFile, JSON.stringify({ text: output, label }));
   } catch (e) { console.error('log write error:', e.message); }
@@ -38,5 +69,6 @@ proc.on('close', code => {
     }
   } catch (e) { console.error('merge error:', e.message); }
 
+  notifyDashboard('/api/internal/done', { code: code || 0 });
   process.exit(code || 0);
 });
