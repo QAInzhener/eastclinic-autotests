@@ -235,13 +235,14 @@ async function changeToNextAvailableSlot(page) {
   await page.mouse.click(chevronCoords.x, chevronCoords.y);
   await page.waitForTimeout(1000);
 
-  const availableDayCoords = await page.evaluate((ay) => {
+  // Все доступные дни в текущем виде, отсортированы слева направо (ранние → поздние)
+  const allAvailableDays = await page.evaluate((ay) => {
     const visibleSlide = [...document.querySelectorAll('.carousel__slide--visible')].find(el => {
       const r = el.getBoundingClientRect();
       return Math.abs((r.top + r.height / 2) - ay) < 100;
     });
     const searchRoot = visibleSlide || document;
-    const candidates = [...searchRoot.querySelectorAll('.calendar-day-container')].map(el => {
+    return [...searchRoot.querySelectorAll('.calendar-day-container')].map(el => {
       const r = el.getBoundingClientRect();
       if (r.width < 5 || r.height < 5) return null;
       const cy = r.top + r.height / 2;
@@ -252,18 +253,23 @@ async function changeToNextAvailableSlot(page) {
       const m = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
       if (!m) return null;
       const brightness = parseInt(m[1]) + parseInt(m[2]) + parseInt(m[3]);
-      return { cx: r.left + r.width / 2, cy, brightness };
-    }).filter(Boolean);
-    const found = candidates.slice().sort((a, b) => a.brightness - b.brightness).find(d => d.brightness < 200);
-    return found ? { x: found.cx, y: found.cy } : null;
+      if (brightness >= 200) return null;
+      return { x: r.left + r.width / 2, y: cy };
+    }).filter(Boolean).sort((a, b) => a.x - b.x);
   }, pickerY);
 
-  test.skip(!availableDayCoords, 'Нет доступных дней после → в пикере — пропускаем');
-  await page.mouse.click(availableDayCoords.x, availableDayCoords.y);
-  await page.waitForTimeout(1500);
+  test.skip(!allAvailableDays.length, 'Нет доступных дней после → в пикере — пропускаем');
 
-  const newSlotTexts = await getTopSlots();
-  test.skip(newSlotTexts.length < 1, 'Нет слотов для смены времени — пропускаем');
+  // Ищем первый день с >= 3 слотами; если таких нет — остаёмся на последнем доступном дне
+  let currentSlots = [];
+  for (let i = 0; i < allAvailableDays.length; i++) {
+    await page.mouse.click(allAvailableDays[i].x, allAvailableDays[i].y);
+    await page.waitForTimeout(1500);
+    currentSlots = await getTopSlots();
+    if (currentSlots.length >= 3 || i === allAvailableDays.length - 1) break;
+  }
+
+  test.skip(currentSlots.length < 1, 'Нет слотов для смены времени — пропускаем');
 
   const lastSlotCoords = await page.evaluate(() => {
     const slots = [...document.querySelectorAll('.calendar-slot')].filter(el => {
