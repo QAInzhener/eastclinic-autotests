@@ -501,6 +501,7 @@ test('Запись на приём (смена времени) — время о
 
   await timeBlock.click();
   await page.waitForSelector('.calendar-slot:visible', { timeout: 10000 });
+  await page.locator('.v-card-container.last').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
 
   const slotsCount = await page.locator('.calendar-slot:visible').count();
   test.skip(slotsCount < 2, 'Только один слот — смена времени невозможна');
