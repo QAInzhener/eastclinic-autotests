@@ -9,7 +9,9 @@ const label = 'все тесты (' + (isDev ? 'dev1.eastclinic.local' : 'eastcl
 const logFile = 'results/last-log-' + (isDev ? 'dev' : 'prod') + '.json';
 const resultsFile = 'results/all-results-' + (isDev ? 'dev' : 'prod') + '.json';
 
-let output = '';
+const runStart = new Date();
+const startHeader = runStart.toLocaleDateString('ru-RU') + ' ' + runStart.toLocaleTimeString('ru-RU') + ' — ' + label + '\n';
+let output = startHeader;
 
 // Sends a notification to the running dashboard.js server (silently ignored if not running)
 function notifyDashboard(path, body) {
@@ -64,6 +66,7 @@ proc.on('close', code => {
       const freshFiles = new Set(fresh.suites.map(s => s.file));
       writeFileSync(resultsFile, JSON.stringify({
         ...existing,
+        stats: fresh.stats,
         suites: [...existing.suites.filter(s => !freshFiles.has(s.file)), ...fresh.suites],
       }, null, 2));
     }

@@ -524,6 +524,7 @@ applyPin();
 var running = false;
 var runStartTime = 0;
 var runTimerInterval = null;
+var pollInterval = null;
 // ============================================================
 // НАЗВАНИЯ БЛОКОВ В ПАНЕЛИ
 // Ключ — имя файла или папки (как оно приходит из результатов).
@@ -599,21 +600,45 @@ function fmt(ms) {
   return Math.floor(ms / 60000) + ' м ' + Math.floor((ms % 60000) / 1000) + ' с';
 }
 
-function startTimer() {
-  runStartTime = Date.now();
+function startTimerAt(ts) {
+  runStartTime = ts || Date.now();
   clearInterval(runTimerInterval);
   var el = document.getElementById('runTime');
   el.classList.add('timer-active');
   runTimerInterval = setInterval(function() {
     document.getElementById('runTime').textContent = '⏱ ' + fmt(Date.now() - runStartTime);
   }, 1000);
-  el.textContent = '⏱ 0 с';
+  el.textContent = '⏱ ' + fmt(Date.now() - runStartTime);
+}
+function startTimer() {
+  startTimerAt(Date.now());
 }
 
 function stopTimer() {
   clearInterval(runTimerInterval);
   runTimerInterval = null;
   document.getElementById('runTime').classList.remove('timer-active');
+}
+function startPolling() {
+  if (pollInterval) return;
+  pollInterval = setInterval(function() {
+    fetch('/api/status').then(function(r) { return r.json(); }).then(function(d) {
+      if (running && !d.running) {
+        stopPolling();
+        setRunning(false);
+        loadResults();
+        loadLog();
+      } else if (!running && d.running) {
+        if (d.env) { selectedEnv = d.env; localStorage.setItem('testEnv', d.env); applyEnvButtons(); }
+        setRunning(true);
+        startTimerAt(d.startedAt || Date.now());
+      }
+    }).catch(function() {});
+  }, 5000);
+}
+function stopPolling() {
+  clearInterval(pollInterval);
+  pollInterval = null;
 }
 
 function esc(str) {
@@ -1140,6 +1165,7 @@ function setRunning(r) {
     pill.textContent = 'Запущены...';
   } else {
     stopTimer();
+    stopPolling();
   }
 }
 
@@ -1191,7 +1217,11 @@ evtSource.addEventListener('connected', function() {
       localStorage.setItem('testEnv', d.env);
       applyEnvButtons();
     }
-    if (d.running) setRunning(true);
+    if (d.running) {
+      setRunning(true);
+      startTimerAt(d.startedAt || Date.now());
+      startPolling();
+    }
     loadResults();
     loadLog();
   });
@@ -1201,6 +1231,7 @@ evtSource.addEventListener('start', function(e) {
   var data = JSON.parse(e.data);
   setRunning(true);
   startTimer();
+  startPolling();
   var name = data.grep ? data.grep
     : (data.file && data.file !== 'все тесты' ? data.file.replace(/^tests[\/\\]/, '') : 'все тесты');
   var envLabel = data.baseUrl ? ' (' + data.baseUrl.replace(/^https?:\/\//, '') + ')' : '';

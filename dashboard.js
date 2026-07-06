@@ -44,6 +44,12 @@ let currentProc = null;
 let stopRequested = false;
 let currentLogText = '';
 let currentLogLabel = '';
+let runStartedAt = 0;
+
+function fmtDateTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU');
+}
 
 function broadcast(event, data) {
   const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -195,6 +201,7 @@ const ENV_URLS = {
 function runTests(file = '', grep = '', line = 0, env = 'prod') {
   if (isRunning) return false;
   isRunning = true;
+  runStartedAt = Date.now();
   currentFile = file;
   currentGrep = grep;
   currentEnv = normEnv(env);
@@ -203,6 +210,9 @@ function runTests(file = '', grep = '', line = 0, env = 'prod') {
   currentLogText = '';
   currentLogLabel = name + ' (' + baseUrl.replace(/^https?:\/\//, '') + ')';
   broadcast('start', { file: file || 'все тесты', grep, env: currentEnv, baseUrl });
+  const startHeader = fmtDateTime(runStartedAt) + ' — ' + currentLogLabel + '\n';
+  currentLogText = startHeader;
+  broadcast('log', { text: startHeader });
 
   const args = ['playwright', 'test'];
   if (file) {
@@ -312,7 +322,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/api/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ running: isRunning, env: isRunning ? currentEnv : null }));
+    return res.end(JSON.stringify({ running: isRunning, env: isRunning ? currentEnv : null, startedAt: isRunning ? runStartedAt : null }));
   }
 
   if (req.method === 'GET' && url.pathname === '/api/log') {
@@ -344,7 +354,11 @@ const server = http.createServer(async (req, res) => {
       currentLogText = '';
       currentLogLabel = body.label || ('все тесты (' + (ENV_URLS[currentEnv] || '').replace(/^https?:\/\//, '') + ')');
       stopRequested = false;
+      runStartedAt = Date.now();
       broadcast('start', { file: 'все тесты', grep: '', env: currentEnv, baseUrl: ENV_URLS[currentEnv] });
+      const startHeader = fmtDateTime(runStartedAt) + ' — ' + currentLogLabel + '\n';
+      currentLogText = startHeader;
+      broadcast('log', { text: startHeader });
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true }));
