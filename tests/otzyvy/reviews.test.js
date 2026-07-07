@@ -19,7 +19,7 @@ async function acceptCookies(page) {
 
 async function openReviewModal(page) {
   await page.goto(REVIEWS_PAGE);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await acceptCookies(page);
 
   const writeReviewBtn = page.locator('button.total-reviews-button');
@@ -29,6 +29,9 @@ async function openReviewModal(page) {
 
   await page.locator('.reviews-form-container').waitFor({ state: 'visible', timeout: 8000 });
 }
+
+// retries: 0 — отзыв нельзя отправлять дважды при повторном прогоне
+test.describe.configure({ retries: 0 });
 
 // --- Форма: Написать отзыв (страница /otzyvy) ---
 

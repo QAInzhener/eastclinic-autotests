@@ -34,6 +34,9 @@ async function openReviewModal(page) {
   await page.locator('.reviews-form-container').waitFor({ state: 'visible', timeout: 8000 });
 }
 
+// retries: 0 — отзыв нельзя отправлять дважды при повторном прогоне
+test.describe.configure({ retries: 0 });
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 test('Форма "Написать отзыв" — отправка с видео (1:59): видео загружается, отзыв публикуется и отображается в видео-галерее', async ({ page }) => {

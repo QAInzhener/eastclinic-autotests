@@ -61,6 +61,9 @@ async function openDoctorReviewForm(page) {
   return { doctorName, doctorHref, form: page.locator('.reviews-form-container') };
 }
 
+// retries: 0 — отзыв нельзя отправлять дважды при повторном прогоне
+test.describe.configure({ retries: 0 });
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 test('Форма отзыва с личной страницы врача — отправка с видео (1:59): видео загружается, отзыв публикуется и отображается в видео-галерее', async ({ page }) => {

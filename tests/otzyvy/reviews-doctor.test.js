@@ -118,6 +118,9 @@ async function checkOnReviewsPage(page) {
 
 // --- Тест ---
 
+// retries: 0 — отзыв нельзя отправлять дважды при повторном прогоне
+test.describe.configure({ retries: 0 });
+
 test('Форма отзыва с личной страницы врача — заполняется, отправляется, публикуется и удаляется', async ({ page }) => {
   test.setTimeout(360000);
   let reviewSubmitted = false;
@@ -127,7 +130,7 @@ test('Форма отзыва с личной страницы врача — з
   try {
     // 1. Открываем список врачей
     await page.goto(VRACHI_PAGE);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await acceptCookies(page);
 
     // 2. Запоминаем количество карточек до «Показать еще»
@@ -153,7 +156,7 @@ test('Форма отзыва с личной страницы врача — з
     if (!doctorHref) throw new Error('Не найдена карточка врача после «Показать еще»');
 
     // 5. Переходим на личную страницу врача
-    await page.goto(doctorHref, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(doctorHref, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     // 6. Читаем ФИО врача — нужно для поиска строки в таблице администратора
     doctorName = (await page.locator('h1').first().textContent()).trim();
