@@ -46,6 +46,28 @@ let currentLogText = '';
 let currentLogLabel = '';
 let runStartedAt = 0;
 
+// Watchdog for cron runs: if no log activity for 5 min, assume run finished
+// without sending /api/internal/done (e.g. network error or process crash).
+let cronWatchdog = null;
+const CRON_INACTIVITY_MS = 5 * 60 * 1000;
+function armCronWatchdog() {
+  clearTimeout(cronWatchdog);
+  cronWatchdog = setTimeout(() => {
+    if (isRunning && !currentProc) {
+      console.log('[watchdog] Нет активности от cron 5 мин — завершаем прогон автоматически');
+      isRunning = false;
+      saveLastLog(currentEnv);
+      const existing = getResults(currentEnv);
+      if (existing) saveAllResults(existing, currentEnv);
+      broadcast('done', { code: 0, stopped: false });
+    }
+  }, CRON_INACTIVITY_MS);
+}
+function clearCronWatchdog() {
+  clearTimeout(cronWatchdog);
+  cronWatchdog = null;
+}
+
 function fmtDateTime(ts) {
   const d = new Date(ts);
   return d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU');
@@ -359,6 +381,7 @@ const server = http.createServer(async (req, res) => {
       const startHeader = fmtDateTime(runStartedAt) + ' — ' + currentLogLabel + '\n';
       currentLogText = startHeader;
       broadcast('log', { text: startHeader });
+      armCronWatchdog();
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true }));
@@ -369,6 +392,7 @@ const server = http.createServer(async (req, res) => {
     if (body.text) {
       currentLogText += body.text;
       broadcast('log', { text: body.text });
+      if (isRunning && !currentProc) armCronWatchdog();
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true }));
@@ -376,6 +400,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && url.pathname === '/api/internal/done') {
     const body = await parseBody(req);
+    clearCronWatchdog();
     if (isRunning) {
       isRunning = false;
       currentProc = null;
