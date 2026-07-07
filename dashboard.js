@@ -239,10 +239,10 @@ function runTests(file = '', grep = '', line = 0, env = 'prod') {
   const args = ['playwright', 'test'];
   if (file) {
     if (grep) {
-      // Use --grep instead of file:line — immune to stale line numbers after edits.
-      // Escape regex special chars so the title is matched literally.
-      const escaped = grep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      args.push(file, '--grep', escaped);
+      // Re-scan file to get the current line — immune to stale test-list.json after edits.
+      // Fallback: run whole file if title not found (never "No tests found").
+      const scanned = findTestLine(join(ROOT, file), grep);
+      args.push(scanned > 0 ? `${file}:${scanned}` : file);
     } else {
       args.push(line > 0 ? `${file}:${line}` : file);
     }

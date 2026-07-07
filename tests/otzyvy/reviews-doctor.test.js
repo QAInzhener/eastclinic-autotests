@@ -52,31 +52,39 @@ async function publishReview(page, doctorName) {
 
   const info = await findReviewRow(page, doctorName);
 
-  const published = await page.evaluate((rowIdx) => {
-    const row = document.querySelectorAll('tr')[rowIdx];
-    if (!row) return false;
-    const cb = row.querySelector('input[type="checkbox"]');
-    if (cb) { if (!cb.checked) cb.click(); return true; }
-    const buttons = [...row.querySelectorAll('button')];
-    if (buttons.length > 0) { buttons[0].click(); return true; }
-    return false;
-  }, info.idx);
-
-  if (!published) throw new Error('Не удалось найти кнопку публикации в строке отзыва');
+  // PrimeVue InputSwitch: DOM eval (cb.click()) не триггерит Vue-реактивность.
+  // Нужен Playwright-клик через role="switch" — только он посылает правильные браузерные события.
+  const row = page.locator('tr').nth(info.idx);
+  const switches = row.getByRole('switch');
+  if (await switches.count() > 0) {
+    await switches.last().click({ force: true });
+  } else {
+    await row.locator('button').first().click({ force: true });
+  }
   await page.waitForTimeout(1500);
   console.log('[admin] ✓ Кнопка публикации нажата');
 }
 
-// Проверяет видимость отзыва на странице врача (прямой переход).
+// Проверяет видимость отзыва на странице врача.
+// Акции → назад — принудительно обновляет Vue-маршрут (иначе кэш SPA).
+// waitForFunction ждёт появления текста — надёжнее фиксированного таймаута.
 async function checkOnDoctorPage(page, doctorHref) {
   console.log('[test] Проверяю отзыв на странице врача...');
   await page.goto(doctorHref, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(1000);
+  await page.getByRole('link', { name: /акции/i }).first().click();
+  await page.waitForURL('**/akczii**', { timeout: 15000 });
+  await page.waitForTimeout(1000);
+  await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(1000);
+  console.log('[test] Вернулся на страницу врача через кнопку «Назад»');
 
-  const found = await page.evaluate(
-    (reviewText) => document.body.innerText.includes(reviewText),
-    REVIEW_TEXT
-  );
+  const found = await page.waitForFunction(
+    (text) => document.body.innerText.includes(text),
+    REVIEW_TEXT,
+    { timeout: 20000 }
+  ).then(() => true).catch(() => false);
+
   if (!found) throw new Error(`Отзыв не найден на странице врача: ${doctorHref}`);
   console.log('[test] ✓ Отзыв виден на личной странице врача');
 }
