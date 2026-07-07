@@ -12,6 +12,16 @@ async function goToReviews(page) {
   await page.waitForTimeout(500);
 }
 
+// Переключает фильтр таблицы на «Все» — иначе опубликованный отзыв пропадает из дефолтного вида.
+// Тихо ничего не делает, если кнопки нет.
+async function showAllReviews(page) {
+  const btn = page.locator('button, [role="tab"]').filter({ hasText: /^Все$/ }).first();
+  if (await btn.isVisible({ timeout: 1500 }).catch(() => false)) {
+    await btn.click();
+    await page.waitForTimeout(500);
+  }
+}
+
 async function loginToAdmin(page) {
   await page.goto('https://eastclinic.ru/nimda-panel/');
   await page.waitForLoadState('domcontentloaded');
@@ -30,14 +40,30 @@ async function loginToAdmin(page) {
 }
 
 // Возвращает индекс строки в таблице отзывов, содержащей searchSnippet (и doctorName, если указан).
+// Перебирает все страницы пагинатора, если строка не найдена на текущей.
 async function findReviewRowIndex(page, searchSnippet, doctorName) {
-  return page.evaluate(({ snippet, doctor }) => {
-    const rows = [...document.querySelectorAll('tr')];
-    return rows.findIndex(row => {
-      const text = row.innerText || '';
-      return text.includes(snippet) && (!doctor || text.includes(doctor));
-    });
-  }, { snippet: searchSnippet, doctor: doctorName || null });
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const idx = await page.evaluate(({ snippet, doctor }) => {
+      const rows = [...document.querySelectorAll('tr')];
+      return rows.findIndex(row => {
+        const text = row.innerText || '';
+        return text.includes(snippet) && (!doctor || text.includes(doctor));
+      });
+    }, { snippet: searchSnippet, doctor: doctorName || null });
+
+    if (idx >= 0) return idx;
+
+    // Не найдено — проверяем есть ли активная кнопка «следующая страница»
+    const nextBtn = page.locator('.p-paginator-next, [aria-label="Next Page"]').first();
+    const disabled = await nextBtn.evaluate(
+      el => el.disabled || el.classList.contains('p-disabled')
+    ).catch(() => true);
+    if (disabled) break;
+
+    await nextBtn.click();
+    await page.waitForTimeout(800);
+  }
+  return -1;
 }
 
 export async function checkReviewInAdmin(page, searchSnippet, timeoutMs = 60000) {
@@ -127,6 +153,7 @@ export async function publishReviewInAdmin(page, searchSnippet, doctorName = nul
 // Возвращает true если последний чекбокс в строке отмечен (= отзыв опубликован).
 export async function isReviewPublishedInAdmin(page, searchSnippet, doctorName = null) {
   await loginToAdmin(page);
+  await showAllReviews(page);
   const idx = await findReviewRowIndex(page, searchSnippet, doctorName);
   if (idx < 0) return false;
   return page.evaluate((rowIdx) => {
@@ -146,6 +173,7 @@ export async function isReviewPublishedInAdmin(page, searchSnippet, doctorName =
 export async function deleteReviewInAdmin(page, searchSnippet, doctorName = null) {
   async function attempt() {
     await loginToAdmin(page);
+    await showAllReviews(page);
 
     const idx = await findReviewRowIndex(page, searchSnippet, doctorName);
     if (idx < 0) throw new Error(`Строка с отзывом "${searchSnippet}" не найдена для удаления`);

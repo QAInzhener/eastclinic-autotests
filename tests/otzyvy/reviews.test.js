@@ -151,31 +151,15 @@ async function publishAndVerify(page) {
 
   const info = await findReviewRow(page);
 
-  // Включаем кнопку публикации (справа от даты — переключатель, зеленеет при включении).
-  // Если в строке есть чекбокс — это и есть тогл; иначе берём первую кнопку.
-  const published = await page.evaluate((rowIdx) => {
-    const row = document.querySelectorAll('tr')[rowIdx];
-    if (!row) return false;
-
-    // Попытка 1: чекбокс-тогл
-    const cb = row.querySelector('input[type="checkbox"]');
-    if (cb) {
-      if (!cb.checked) cb.click();
-      return true;
-    }
-
-    // Попытка 2: кнопки в строке — публикация идёт до карандаша,
-    // т.е. первая кнопка если их несколько, или единственная если одна
-    const buttons = [...row.querySelectorAll('button')];
-    if (buttons.length > 0) {
-      buttons[0].click();
-      return true;
-    }
-
-    return false;
-  }, info.idx);
-
-  if (!published) throw new Error('Не удалось найти кнопку публикации в строке отзыва');
+  // PrimeVue InputSwitch: DOM eval (cb.click()) не триггерит Vue-реактивность.
+  // Нужен Playwright-клик через role="switch" — только он посылает правильные браузерные события.
+  const row = page.locator('tr').nth(info.idx);
+  const switches = row.getByRole('switch');
+  if (await switches.count() > 0) {
+    await switches.last().click({ force: true });
+  } else {
+    await row.locator('button').first().click({ force: true });
+  }
   await page.waitForTimeout(1500);
   console.log('[admin] ✓ Кнопка публикации нажата');
 
