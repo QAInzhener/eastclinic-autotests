@@ -238,15 +238,14 @@ function runTests(file = '', grep = '', line = 0, env = 'prod') {
 
   const args = ['playwright', 'test'];
   if (file) {
-    // Priority: re-scan file to get fresh line number (handles stale test-list.json).
-    // Fallback: use stored line (for run tests it's spec.line from Playwright JSON — reliable).
-    // Last resort: run whole file only if both sources give 0.
-    let actualLine = line;
     if (grep) {
-      const scanned = findTestLine(join(ROOT, file), grep);
-      if (scanned > 0) actualLine = scanned;
+      // Use --grep instead of file:line — immune to stale line numbers after edits.
+      // Escape regex special chars so the title is matched literally.
+      const escaped = grep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      args.push(file, '--grep', escaped);
+    } else {
+      args.push(line > 0 ? `${file}:${line}` : file);
     }
-    args.push(actualLine > 0 ? `${file}:${actualLine}` : file);
   }
 
   const proc = spawn('npx', args, {
