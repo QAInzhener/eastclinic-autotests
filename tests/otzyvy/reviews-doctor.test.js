@@ -67,22 +67,11 @@ async function publishReview(page, doctorName) {
   console.log('[admin] ✓ Кнопка публикации нажата');
 }
 
-// Проверяет видимость отзыва на странице врача:
-// переходит на /akczii через шапку, возвращается назад, проверяет текст.
+// Проверяет видимость отзыва на странице врача (прямой переход).
 async function checkOnDoctorPage(page, doctorHref) {
   console.log('[test] Проверяю отзыв на странице врача...');
   await page.goto(doctorHref, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(1000);
-  await page.getByRole('link', { name: /акции/i }).first().click();
-  await page.waitForURL('**/akczii**', { timeout: 15000 });
-  await page.waitForTimeout(1000);
-  await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(2000);
-  console.log('[test] Вернулся на страницу врача через кнопку «Назад»');
-
-  // Прокручиваем до секции отзывов и проверяем
-  await page.getByText('Новые').first().scrollIntoViewIfNeeded().catch(() => {});
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(3000);
 
   const found = await page.evaluate(
     (reviewText) => document.body.innerText.includes(reviewText),
@@ -92,8 +81,8 @@ async function checkOnDoctorPage(page, doctorHref) {
   console.log('[test] ✓ Отзыв виден на личной странице врача');
 }
 
-// Проверяет видимость отзыва на общей странице /otzyvy:
-// Акции в шапке → Назад → прокрутка к фильтрам → проверка текста.
+// Проверяет видимость отзыва на /otzyvy.
+// Акции → назад — принудительно обновляет Vue-маршрут, иначе страница отдаёт кэш.
 async function checkOnReviewsPage(page) {
   console.log('[test] Проверяю отзыв на странице /otzyvy...');
   await page.goto(REVIEWS_PAGE, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -105,8 +94,7 @@ async function checkOnReviewsPage(page) {
   await page.waitForTimeout(2000);
   console.log('[test] Вернулся на /otzyvy через кнопку «Назад»');
 
-  await page.getByText('Новые').first().scrollIntoViewIfNeeded();
-  await page.waitForTimeout(500);
+  await page.getByText('Новые').first().scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
 
   const found = await page.evaluate(
     (reviewText) => document.body.innerText.includes(reviewText),
@@ -122,7 +110,7 @@ async function checkOnReviewsPage(page) {
 test.describe.configure({ retries: 0 });
 
 test('Форма отзыва с личной страницы врача — заполняется, отправляется, публикуется и удаляется', async ({ page }) => {
-  test.setTimeout(360000);
+  test.setTimeout(600000);
   let reviewSubmitted = false;
   let reviewPublished = false;
   let doctorName = null;

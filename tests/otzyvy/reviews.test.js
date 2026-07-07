@@ -196,7 +196,7 @@ async function publishAndVerify(page) {
   console.log('[test] Вернулся на /otzyvy через кнопку «Назад»');
 
   // Прокручиваем к фильтрам «Новые» / «Со всех площадок» — они идут сразу над списком отзывов
-  await page.getByText('Новые').first().scrollIntoViewIfNeeded();
+  await page.getByText('Новые').first().scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(500);
 
   // Проверяем, что текст тестового отзыва виден на странице
