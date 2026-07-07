@@ -238,13 +238,22 @@ function runTests(file = '', grep = '', line = 0, env = 'prod') {
 
   const args = ['playwright', 'test'];
   if (file) {
+    // suite.file in Playwright JSON is relative to testDir (no 'tests/' prefix).
+    // findTestLine needs a full path from ROOT, and Playwright CLI needs 'tests/' prefix.
+    const fullFile = file.replace(/\\/g, '/').startsWith('tests/') ? file.replace(/\\/g, '/') : 'tests/' + file.replace(/\\/g, '/');
     if (grep) {
       // Re-scan file to get the current line — immune to stale test-list.json after edits.
-      // Fallback: run whole file if title not found (never "No tests found").
-      const scanned = findTestLine(join(ROOT, file), grep);
-      args.push(scanned > 0 ? `${file}:${scanned}` : file);
+      const scanned = findTestLine(join(ROOT, fullFile), grep);
+      if (scanned > 0) {
+        args.push(`${fullFile}:${scanned}`);
+      } else if (line > 0) {
+        // title not found in file (renamed?) — fall back to stored line number
+        args.push(`${fullFile}:${line}`);
+      } else {
+        args.push(fullFile);
+      }
     } else {
-      args.push(line > 0 ? `${file}:${line}` : file);
+      args.push(line > 0 ? `${fullFile}:${line}` : fullFile);
     }
   }
 
