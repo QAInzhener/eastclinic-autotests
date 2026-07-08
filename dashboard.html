@@ -354,6 +354,24 @@ header .env-toggle {
 .dark .report-btn { background: #7f0000; color: #ef9a9a; }
 .dark .report-btn:hover { background: #a30000; }
 
+.report-btn-skip {
+  font-size: 13px;
+  padding: 3px 9px;
+  background: #fff3e0;
+  color: #e65100;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
+  transition: background .2s;
+}
+.report-btn-skip:hover { background: #ffe0b2; }
+.dark .report-btn-skip { background: #7f3000; color: #ffcc80; }
+.dark .report-btn-skip:hover { background: #a34000; }
+
 .log-wrap {
   background: var(--surface);
   border-radius: 10px;
@@ -702,6 +720,7 @@ function buildTestRowItem(spec, fileArg, blockKey) {
   var err = getSpecError(spec);
   var durText = dur > 0 ? ' · ' + fmt(dur) : '';
   var isFailed = dotCls === 'dot-fail';
+  var isSkipped = dotCls === 'dot-skip';
   var idx = testRegistry.length;
   testRegistry.push({ file: fileArg, grep: spec.title, line: spec.line || 0, testId: getSpecTestId(spec) });
   return '<div class="test-row"' +
@@ -715,6 +734,7 @@ function buildTestRowItem(spec, fileArg, blockKey) {
       (err ? '<div class="test-err">' + esc(err) + '</div>' : '') +
     '</div>' +
     (isFailed ? '<button class="report-btn" data-idx="' + idx + '">Отчёт</button>' : '') +
+    (isSkipped ? '<button class="report-btn-skip" data-idx="' + idx + '">Отчёт</button>' : '') +
     '<button class="run-test-btn" data-idx="' + idx + '"' + (running ? ' disabled' : '') + '>&#9654;</button>' +
   '</div>';
 }
@@ -1093,9 +1113,9 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// Event delegation for "open HTML report" buttons (shown on failed tests)
+// Event delegation for "open HTML report" buttons (shown on failed and skipped tests)
 document.addEventListener('click', function(e) {
-  var btn = e.target.closest('.report-btn');
+  var btn = e.target.closest('.report-btn, .report-btn-skip');
   if (!btn) return;
   e.stopPropagation();
   var idx = parseInt(btn.dataset.idx, 10);
