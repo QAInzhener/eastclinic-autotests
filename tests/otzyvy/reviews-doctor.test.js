@@ -159,7 +159,10 @@ test('Форма отзыва с личной страницы врача — з
     console.log('[test] Врач:', doctorName);
 
     // 7. Открываем форму отзыва
+    const crashed = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+    if (crashed) throw new Error('Приложение упало — страница врача показывает экран ошибки');
     const reviewBtn = page.locator('button.total-reviews-button');
+    await reviewBtn.waitFor({ state: 'visible', timeout: 8000 });
     await reviewBtn.scrollIntoViewIfNeeded();
     await reviewBtn.click();
     await page.locator('.reviews-form-container').waitFor({ state: 'visible', timeout: 8000 });
