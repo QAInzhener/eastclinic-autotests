@@ -898,6 +898,13 @@ function renderSuites(data) {
         var ranSpecs = flatSpecs(suite);
         innerHtml += buildUnrunTestRows(ranSpecs, fa, folder);
       });
+      // Файлы из testList, у которых нет результатов вообще — показываем как «не запускался»
+      var renderedFiles = new Set(groupSuites.map(function(s) { return (s.file || '').replace(/\\/g, '/'); }));
+      Object.keys(testList).forEach(function(tKey) {
+        if (!tKey.startsWith(folder + '/')) return;
+        if (renderedFiles.has(tKey)) return;
+        innerHtml += buildUnrunTestRows([], tKey, folder);
+      });
 
       var folderArg = 'tests/' + folder;
       var folderDisplayName = PANEL_NAMES[folder] || folder;
