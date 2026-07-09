@@ -12,7 +12,6 @@ const PHOTOS_4 = [
   { path: path.resolve(__dirname, 'devushka-model-960x1440.png'),      label: 'PNG'  },
   { path: path.resolve(__dirname, 'muzhchina-ocean-1280x720.webp'),    label: 'WebP' },
 ];
-const PHOTO_5TH = { path: path.resolve(__dirname, 'luna-964x1280.jpg'), label: 'Луна (JPG)' };
 
 const TEST_NAME      = 'Тест Тестов';
 const TEST_PHONE     = '4444444444';
@@ -110,28 +109,10 @@ test('Форма "Написать отзыв" — попытка загрузи
     expect(countAfter4, 'Ожидается 4 превью после загрузки 4 фото').toBe(4);
     console.log('[test] ✓ 4 фото в форме');
 
-    // Пробуем загрузить 5-е фото (Луна)
+    // Проверяем лимит: после 4 фото слот добавления должен скрыться
     const uploadSlot = form.locator('.media-item.image-item');
-    const slotVisible = await uploadSlot.first().isVisible({ timeout: 3000 }).catch(() => false);
-
-    if (slotVisible) {
-      // Слот ещё доступен — пробуем загрузить 5-й файл
-      const [fileChooser] = await Promise.all([
-        page.waitForEvent('filechooser', { timeout: 10000 }),
-        uploadSlot.first().click(),
-      ]);
-      await fileChooser.setFiles(PHOTO_5TH.path);
-      console.log(`[test] Файл «${PHOTO_5TH.label}» передан в диалог выбора`);
-
-      // Ждём 5 секунд — 5-е фото не должно появиться
-      await page.waitForTimeout(5000);
-      const countAfter5th = await form.locator('img[src]:not([src=""])').count();
-      expect(countAfter5th, '5-е фото не должно быть принято формой').toBe(4);
-      console.log('[test] ✓ 5-е фото (Луна) отклонено — в форме по-прежнему 4 превью');
-    } else {
-      // Слот скрыт — форма корректно ограничивает до 4 фото
-      console.log('[test] ✓ После 4 фото кнопка добавления скрыта — лимит соблюдён');
-    }
+    await expect(uploadSlot.first(), 'После 4 фото кнопка добавления должна быть скрыта').not.toBeVisible({ timeout: 3000 });
+    console.log('[test] ✓ После 4 фото кнопка добавления скрыта — лимит соблюдён');
 
     // Форма с 4 фото работает: заполняем и отправляем
     await form.locator('textarea.review-input').fill(REVIEW_TEXT);
