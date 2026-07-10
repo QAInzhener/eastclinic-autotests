@@ -13,6 +13,8 @@ async function acceptCookies(page) {
 async function openCatalog(page) {
   await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await acceptCookies(page);
+  const crashed = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+  if (crashed) throw new Error('Приложение упало — страница /catalog показывает экран ошибки');
   await page.locator('.catalog-link').first().waitFor({ state: 'visible', timeout: 8000 });
 }
 
