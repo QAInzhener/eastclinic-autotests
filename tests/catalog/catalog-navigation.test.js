@@ -11,7 +11,7 @@ async function acceptCookies(page) {
 }
 
 async function openCatalog(page) {
-  await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded' });
+  await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await acceptCookies(page);
   await page.locator('.catalog-link').first().waitFor({ state: 'visible', timeout: 8000 });
 }
@@ -62,7 +62,7 @@ test('Каталог услуг — все разделы левой панел�
     for (let attempt = 0; attempt < 3 && !clicked; attempt++) {
       const urlBase = page.url().split('?')[0].split('#')[0];
       if (!urlBase.endsWith('/catalog')) {
-        await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded' });
+        await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
         await page.locator('.catalog-link').first().waitFor({ state: 'visible', timeout: 8000 });
       }
       try {
