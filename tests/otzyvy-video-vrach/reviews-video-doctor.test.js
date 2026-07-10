@@ -30,6 +30,9 @@ async function openDoctorReviewForm(page) {
   await page.waitForLoadState('domcontentloaded');
   await acceptCookies(page);
 
+  const crachedVrachi = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+  if (crachedVrachi) throw new Error('Приложение упало — страница /vrachi показывает экран ошибки');
+
   const countBefore = await page.evaluate(() =>
     document.querySelectorAll('.doctor-info-container').length
   );
@@ -81,6 +84,9 @@ test('Форма отзыва с личной страницы врача — о
     await page.goto(VRACHI_PAGE);
     await page.waitForLoadState('domcontentloaded');
     await acceptCookies(page);
+
+    const crachedVrachi = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+    if (crachedVrachi) throw new Error('Приложение упало — страница /vrachi показывает экран ошибки');
 
     // 2. Запоминаем количество карточек до «Показать еще»
     const countBefore = await page.evaluate(() =>
