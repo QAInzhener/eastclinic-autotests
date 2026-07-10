@@ -446,6 +446,93 @@ header .env-toggle {
 .empty { text-align: center; padding: 48px 0; color: var(--text-muted); }
 .empty-icon { font-size: 48px; }
 .empty-text { font-size: 16px; margin-top: 12px; line-height: 1.6; }
+
+/* Traces modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: var(--surface);
+  border-radius: 12px;
+  width: 92%;
+  max-width: 660px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,.3);
+}
+.modal-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.modal-header h2 { font-size: 15px; font-weight: 600; flex: 1; margin: 0; }
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--text-muted);
+  line-height: 1;
+  padding: 2px 6px;
+  font-family: inherit;
+}
+.modal-close-btn:hover { color: var(--text); }
+.modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+.modal-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  line-height: 1.6;
+}
+.modal-hint code {
+  font-family: "Consolas", "Courier New", monospace;
+  background: rgba(0,0,0,.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+.dark .modal-hint code { background: rgba(255,255,255,.1); }
+.trace-list { display: flex; flex-direction: column; gap: 8px; }
+.trace-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+.trace-info { flex: 1; min-width: 0; }
+.trace-name { font-size: 13px; font-weight: 500; word-break: break-all; }
+.trace-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.trace-dl-btn {
+  font-size: 12px;
+  padding: 6px 14px;
+  background: var(--run-all-bg);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  text-decoration: none;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.trace-dl-btn:hover { background: var(--run-all-hover); }
+.trace-empty { text-align: center; padding: 32px 0; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -498,11 +585,33 @@ header .env-toggle {
     <div class="log-header">
       <span class="log-title" id="logTitle" onclick="toggleLog()">Лог последнего запуска</span>
       <div class="log-btns">
+        <button class="log-action-btn" onclick="window.open('/report/', '_blank')">&#128196; HTML-отчёт</button>
+        <button class="log-action-btn" onclick="openTracesPanel()">&#128190; Трейсы</button>
         <button class="log-action-btn" id="logFsBtn" onclick="toggleLogFullscreen()">&#x26F6; На весь экран</button>
         <button class="log-action-btn" id="logToggleBtn" onclick="toggleLog()">&#9650; Свернуть</button>
       </div>
     </div>
     <div id="log" class="open"></div>
+  </div>
+</div>
+
+<!-- Traces modal -->
+<div class="modal-overlay" id="tracesModal" onclick="closeTracesPanel()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>&#128190; Трейсы — записи упавших тестов</h2>
+      <button class="modal-close-btn" onclick="closeTracesPanel()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-hint">
+        Скачайте zip-файл трейса и откройте его одним из способов:<br>
+        &bull; Перетащите zip на <code>trace.playwright.dev</code> (работает офлайн, видно сеть, скриншоты, логи)<br>
+        &bull; Или в терминале: <code>npx playwright show-trace trace.zip</code>
+      </div>
+      <div class="trace-list" id="traceList">
+        <div class="trace-empty">Загрузка...</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1314,6 +1423,43 @@ evtSource.onerror = function() {
     pill.textContent = 'Нет связи с сервером';
   }
 };
+
+// ---- Traces panel ----
+function openTracesPanel() {
+  document.getElementById('tracesModal').classList.add('open');
+  document.getElementById('traceList').innerHTML = '<div class="trace-empty">Загрузка...</div>';
+  fetch('/api/traces').then(function(r) { return r.json(); }).then(function(traces) {
+    var list = document.getElementById('traceList');
+    if (!traces || !traces.length) {
+      list.innerHTML = '<div class="trace-empty">Трейсов нет.<br>Они сохраняются автоматически при падении теста.</div>';
+      return;
+    }
+    list.innerHTML = traces.map(function(t) {
+      var date = new Date(t.mtime).toLocaleString('ru-RU');
+      var size = t.size > 1024 * 1024
+        ? (t.size / (1024 * 1024)).toFixed(1) + ' МБ'
+        : (t.size / 1024).toFixed(0) + ' КБ';
+      var encodedRel = t.rel.split('/').map(encodeURIComponent).join('/');
+      return '<div class="trace-item">' +
+        '<div class="trace-info">' +
+          '<div class="trace-name">' + esc(t.name) + '</div>' +
+          '<div class="trace-meta">' + esc(date) + ' &nbsp;&middot;&nbsp; ' + esc(size) + '</div>' +
+        '</div>' +
+        '<a class="trace-dl-btn" href="/traces/' + encodedRel + '" download="' + esc(t.name) + '-trace.zip">&#8595; Скачать</a>' +
+      '</div>';
+    }).join('');
+  }).catch(function() {
+    document.getElementById('traceList').innerHTML = '<div class="trace-empty">Ошибка загрузки трейсов.</div>';
+  });
+}
+
+function closeTracesPanel() {
+  document.getElementById('tracesModal').classList.remove('open');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeTracesPanel();
+});
 </script>
 </body>
 </html>

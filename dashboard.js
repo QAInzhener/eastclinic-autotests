@@ -1,8 +1,8 @@
 import http from 'http';
 import { spawn } from 'child_process';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join, extname, normalize } from 'path';
+import { dirname, join, extname, normalize, basename } from 'path';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = 3000;
@@ -10,6 +10,7 @@ const LAST_RUN_PATH  = join(ROOT, 'results', 'last-run.json');
 const TEST_LIST_PATH = join(ROOT, 'results', 'test-list.json');
 const HTML_PATH = join(ROOT, 'dashboard.html');
 const REPORT_DIR = join(ROOT, 'playwright-report');
+const TEST_RESULTS_DIR = join(ROOT, 'test-results');
 
 const REPORT_MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -312,6 +313,30 @@ function stopTests() {
   return true;
 }
 
+// ---- Trace scanning ----
+
+function scanTraces() {
+  const traces = [];
+  if (!existsSync(TEST_RESULTS_DIR)) return traces;
+  function walk(dir) {
+    try {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        const st = statSync(full);
+        if (st.isDirectory()) {
+          walk(full);
+        } else if (entry === 'trace.zip') {
+          const rel = full.slice(TEST_RESULTS_DIR.length + 1).replace(/\\/g, '/');
+          traces.push({ rel, name: basename(dirname(full)), size: st.size, mtime: st.mtimeMs });
+        }
+      }
+    } catch {}
+  }
+  walk(TEST_RESULTS_DIR);
+  traces.sort((a, b) => b.mtime - a.mtime);
+  return traces;
+}
+
 // ---- HTTP server ----
 
 function parseBody(req) {
@@ -433,6 +458,25 @@ const server = http.createServer(async (req, res) => {
     }
     const mime = REPORT_MIME[extname(filePath).toLowerCase()] || 'application/octet-stream';
     res.writeHead(200, { 'Content-Type': mime });
+    return res.end(readFileSync(filePath));
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/traces') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify(scanTraces()));
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/traces/')) {
+    const rel = decodeURIComponent(url.pathname.slice('/traces/'.length));
+    const filePath = normalize(join(TEST_RESULTS_DIR, rel));
+    if (!filePath.startsWith(TEST_RESULTS_DIR) || !existsSync(filePath)) {
+      res.writeHead(404);
+      return res.end('Трейс не найден');
+    }
+    res.writeHead(200, {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${basename(filePath)}"`,
+    });
     return res.end(readFileSync(filePath));
   }
 
