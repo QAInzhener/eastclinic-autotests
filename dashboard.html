@@ -489,7 +489,7 @@ header .env-toggle {
 .modal-close-btn:hover { color: var(--text); }
 .modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
 .modal-hint {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
   background: var(--bg);
   border-radius: 6px;
@@ -518,12 +518,13 @@ header .env-toggle {
 .trace-name { font-size: 13px; font-weight: 500; word-break: break-all; }
 .trace-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 .trace-dl-btn {
-  font-size: 12px;
-  padding: 6px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px 22px;
   background: var(--run-all-bg);
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
   font-family: inherit;
@@ -585,8 +586,8 @@ header .env-toggle {
     <div class="log-header">
       <span class="log-title" id="logTitle" onclick="toggleLog()">Лог последнего запуска</span>
       <div class="log-btns">
-        <button class="log-action-btn" onclick="window.open('/report/', '_blank')">&#128196; HTML-отчёт</button>
-        <button class="log-action-btn" onclick="openTracesPanel()">&#128190; Трейсы</button>
+        <button class="log-action-btn" onclick="window.open('/report/', '_blank')">HTML-отчёт</button>
+        <button class="log-action-btn" onclick="openTracesPanel()">Трейсы</button>
         <button class="log-action-btn" id="logFsBtn" onclick="toggleLogFullscreen()">&#x26F6; На весь экран</button>
         <button class="log-action-btn" id="logToggleBtn" onclick="toggleLog()">&#9650; Свернуть</button>
       </div>
@@ -599,7 +600,7 @@ header .env-toggle {
 <div class="modal-overlay" id="tracesModal" onclick="closeTracesPanel()">
   <div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <h2>&#128190; Трейсы — записи упавших тестов</h2>
+      <h2>Трейсы — записи упавших тестов</h2>
       <button class="modal-close-btn" onclick="closeTracesPanel()">&times;</button>
     </div>
     <div class="modal-body">
@@ -1445,7 +1446,7 @@ function openTracesPanel() {
           '<div class="trace-name">' + esc(t.name) + '</div>' +
           '<div class="trace-meta">' + esc(date) + ' &nbsp;&middot;&nbsp; ' + esc(size) + '</div>' +
         '</div>' +
-        '<a class="trace-dl-btn" href="/traces/' + encodedRel + '" download="' + esc(t.name) + '-trace.zip">&#8595; Скачать</a>' +
+        '<a class="trace-dl-btn" href="/traces/' + encodedRel + '" download="' + esc(t.name) + '-trace.zip">Скачать</a>' +
       '</div>';
     }).join('');
   }).catch(function() {
