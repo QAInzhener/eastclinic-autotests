@@ -1435,6 +1435,9 @@ function openTracesPanel() {
       list.innerHTML = '<div class="trace-empty">Трейсов нет.<br>Они сохраняются автоматически при падении теста.</div>';
       return;
     }
+    // Ключи PANEL_NAMES в порядке убывания длины — для жадного поиска по префиксу
+    var sortedPanelKeys = Object.keys(PANEL_NAMES).sort(function(a, b) { return b.length - a.length; });
+
     list.innerHTML = traces.map(function(t) {
       var date = new Date(t.mtime).toLocaleString('ru-RU');
       var size = t.size > 1024 * 1024
@@ -1442,38 +1445,30 @@ function openTracesPanel() {
         : (t.size / 1024).toFixed(0) + ' КБ';
       var encodedRel = t.rel.split('/').map(encodeURIComponent).join('/');
 
-      // Определяем папку из пути (например "search/trace.zip" → "search")
-      var folder = '';
-      if (t.rel && t.rel.indexOf('/') > 0) {
-        folder = t.rel.split('/')[0];
-      }
-      // Запасной вариант: ищем ключ PANEL_NAMES в начале имени файла
-      if (!folder) {
-        var sortedKeys = Object.keys(PANEL_NAMES).sort(function(a, b) { return b.length - a.length; });
-        for (var ki = 0; ki < sortedKeys.length; ki++) {
-          if (t.name.toLowerCase().startsWith(sortedKeys[ki].toLowerCase() + '-')) {
-            folder = sortedKeys[ki]; break;
-          }
+      // Ищем название блока: сравниваем префикс t.name с ключами PANEL_NAMES
+      // (ключи файлов вида "forms-main.test.js" → slug "forms-main")
+      var panelName = '';
+      for (var ki = 0; ki < sortedPanelKeys.length; ki++) {
+        var keySlug = sortedPanelKeys[ki].replace(/\.test\.js$/, '').replace(/\./g, '-');
+        if (t.name.toLowerCase().startsWith(keySlug.toLowerCase() + '-')) {
+          panelName = PANEL_NAMES[sortedPanelKeys[ki]];
+          break;
         }
       }
-      var panelName = folder && PANEL_NAMES[folder] ? PANEL_NAMES[folder] : '';
 
-      // Восстанавливаем название теста из слага
-      var raw = t.name.replace(/-retry\d+$/, '');
-      if (folder && raw.toLowerCase().startsWith(folder.toLowerCase() + '-')) {
-        raw = raw.slice(folder.length + 1);
-        // Убираем префикс имени файла (следующий токен до дефиса)
-        var firstDash = raw.indexOf('-');
-        if (firstDash > 0 && firstDash < 30) raw = raw.slice(firstDash + 1);
-      }
-      var testTitle = raw.replace(/--/g, ' — ').replace(/-/g, ' ').trim();
+      // Де-слагификация для подписи (убираем retry, меняем -- → —, - → пробел)
+      var testTitle = t.name
+        .replace(/-retry\d+$/, '')
+        .replace(/--/g, ' — ')
+        .replace(/-/g, ' ')
+        .trim();
 
       var displayName = panelName || t.name;
 
       return '<div class="trace-item">' +
         '<div class="trace-info">' +
           '<div class="trace-name">' + esc(displayName) + '</div>' +
-          (panelName && testTitle ? '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' + esc(testTitle) + '</div>' : '') +
+          (panelName ? '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' + esc(testTitle) + '</div>' : '') +
           '<div class="trace-meta">' + esc(date) + ' &nbsp;&middot;&nbsp; ' + esc(size) + '</div>' +
         '</div>' +
         '<a class="trace-dl-btn" href="/traces/' + encodedRel + '" download="' + esc(t.name) + '-trace.zip">Скачать</a>' +
