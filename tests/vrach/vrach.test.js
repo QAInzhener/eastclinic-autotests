@@ -462,6 +462,15 @@ test('Личная страница врача — блок наград, дол
   }
   await expect(mainInfoBlock).toBeVisible();
 
+  // Фиксированные категории: иконка добавляется сайтом автоматически, не редактируется в админке.
+  // Если у такой категории нет img — это баг на проде.
+  const FIXED_CATEGORIES = [
+    'Доктор медицинских наук', 'Кандидат медицинских наук',
+    'Научный руководитель', 'Главный врач',
+    'Врач-эксперт', 'Ведущий врач', 'Ведущий специалист',
+    'Врач высшей категории', 'Врач первой категории', 'Врач второй категории',
+  ];
+
   const items = mainInfoBlock.locator('.single-doctor__main-info__item');
   const itemCount = await items.count();
   expect(itemCount, 'Хотя бы один элемент в блоке').toBeGreaterThan(0);
@@ -487,11 +496,20 @@ test('Личная страница врача — блок наград, дол
     if (hasAwardImg) {
       console.log(`[test] Награда: "${titleText}"`);
     } else {
-      const imgSrc = await item.locator('img').first().getAttribute('src') ?? '';
-      const type = /kandnauk|docnauk/i.test(imgSrc) ? 'Научное звание'
-        : /vysshei|pervoi|vtoroi/i.test(imgSrc) ? 'Категория'
-        : 'Должность';
-      console.log(`[test] ${type}: "${titleText}"`);
+      const imgSrc = await item.locator('img').first().getAttribute('src', { timeout: 0 }).catch(() => null);
+      const isFixed = FIXED_CATEGORIES.some(cat => titleText.includes(cat));
+      if (imgSrc === null) {
+        if (isFixed) {
+          throw new Error(`У фиксированной категории "${titleText}" отсутствует иконка`);
+        }
+        // Кастомная категория — иконка добавляется вручную контент-менеджером
+        console.log(`[test] Пользовательская категория: "${titleText}"`);
+      } else {
+        const type = /kandnauk|docnauk/i.test(imgSrc) ? 'Научное звание'
+          : /vysshei|pervoi|vtoroi/i.test(imgSrc) ? 'Категория'
+          : 'Должность';
+        console.log(`[test] ${type}: "${titleText}"`);
+      }
     }
   }
 

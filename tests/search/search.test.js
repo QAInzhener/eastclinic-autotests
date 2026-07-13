@@ -16,7 +16,7 @@ const CLINIC_ITEMS = [
 // ─── Левая часть: текстовый поиск ────────────────────────────────────────────
 // Структура: input.main-search-input (placeholder через CSS, не атрибут)
 // Результаты: div.search-result-wrapper (без <a>, навигация через Vue click-хендлер)
-// URL-паттерны: врач=/vrachi/, услуга=/uslugi/, заболевание=/zabolevaniya/ (не /info/), статья=/zabolevaniya/info/
+// URL-паттерны: врач=/vrachi/, услуга=/uslugi/, заболевание=/zabolevaniya/<slug>, статья=/zabolevaniya/<категория>/<slug> (2 уровня)
 
 async function openSearchAndType(page, query) {
   await page.goto(BASE_URL + '/', { waitUntil: 'load' });
@@ -75,7 +75,7 @@ test('Поле поиска (левая часть): поиск статьи —
   test.setTimeout(30000);
   await openSearchAndType(page, 'как лечить');
   const url = await clickFirstResult(page);
-  expect(url).toMatch(/\/zabolevaniya\/info\//);
+  expect(url).toMatch(/\/zabolevaniya\/[^/]+\/[^/]+/);
 });
 
 // ─── Правая часть: выбор филиала ─────────────────────────────────────────────
