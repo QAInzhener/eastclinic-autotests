@@ -315,7 +315,43 @@ function stopTests() {
 
 // ---- Trace scanning ----
 
+function buildTraceTitleMap() {
+  const map = {};
+  const sources = [
+    resultsPath('prod'),
+    resultsPath('dev'),
+    LAST_RUN_PATH,
+  ];
+  for (const p of sources) {
+    if (!existsSync(p)) continue;
+    let data;
+    try { data = JSON.parse(readFileSync(p, 'utf8')); } catch { continue; }
+    if (!data || !data.suites) continue;
+    function walkSpecs(suite) {
+      if (suite.specs) suite.specs.forEach(spec => {
+        if (!spec.tests) return;
+        spec.tests.forEach(test => {
+          if (!test.results) return;
+          test.results.forEach(result => {
+            if (!result.attachments) return;
+            result.attachments.forEach(att => {
+              if (att.path) {
+                const folder = basename(dirname(att.path));
+                if (folder && spec.title && !map[folder]) map[folder] = spec.title;
+              }
+            });
+          });
+        });
+      });
+      if (suite.suites) suite.suites.forEach(walkSpecs);
+    }
+    data.suites.forEach(walkSpecs);
+  }
+  return map;
+}
+
 function scanTraces() {
+  const titleMap = buildTraceTitleMap();
   const traces = [];
   if (!existsSync(TEST_RESULTS_DIR)) return traces;
   function walk(dir) {
@@ -327,7 +363,8 @@ function scanTraces() {
           walk(full);
         } else if (entry === 'trace.zip') {
           const rel = full.slice(TEST_RESULTS_DIR.length + 1).replace(/\\/g, '/');
-          traces.push({ rel, name: basename(dirname(full)), size: st.size, mtime: st.mtimeMs });
+          const name = basename(dirname(full));
+          traces.push({ rel, name, title: titleMap[name] || null, size: st.size, mtime: st.mtimeMs });
         }
       }
     } catch {}

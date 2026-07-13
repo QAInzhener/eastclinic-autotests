@@ -1458,18 +1458,23 @@ function openTracesPanel() {
         }
       }
 
-      // Извлекаем только заголовок теста: снимаем префикс файла и хеш Playwright
-      // Формат t.name: {folder}-{file}-{hash}-{test-title-slug}
-      var rawTitle = t.name;
-      if (matchedKeySlug) {
-        rawTitle = rawTitle.slice(matchedKeySlug.length + 1); // убираем "folder-file-"
-        rawTitle = rawTitle.replace(/^[0-9a-f]+-/i, '');     // убираем хеш (напр. "582fe-")
+      // Заголовок теста: берём из results JSON (t.title) если доступен,
+      // иначе де-слагифицируем хвост t.name после префикса файла и хеша
+      var testTitle = '';
+      if (t.title) {
+        testTitle = t.title;
+      } else {
+        var rawTitle = t.name;
+        if (matchedKeySlug) {
+          rawTitle = rawTitle.slice(matchedKeySlug.length + 1);
+          rawTitle = rawTitle.replace(/^[0-9a-f]+-/i, '');
+        }
+        testTitle = rawTitle
+          .replace(/-retry\d+$/, '')
+          .replace(/--/g, ' — ')
+          .replace(/-/g, ' ')
+          .trim();
       }
-      var testTitle = rawTitle
-        .replace(/-retry\d+$/, '')
-        .replace(/--/g, ' — ')
-        .replace(/-/g, ' ')
-        .trim();
 
       var displayName = panelName || t.name;
 
