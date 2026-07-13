@@ -1448,16 +1448,24 @@ function openTracesPanel() {
       // Ищем название блока: сравниваем префикс t.name с ключами PANEL_NAMES
       // (ключи файлов вида "forms-main.test.js" → slug "forms-main")
       var panelName = '';
+      var matchedKeySlug = '';
       for (var ki = 0; ki < sortedPanelKeys.length; ki++) {
         var keySlug = sortedPanelKeys[ki].replace(/\.test\.js$/, '').replace(/\./g, '-');
         if (t.name.toLowerCase().startsWith(keySlug.toLowerCase() + '-')) {
           panelName = PANEL_NAMES[sortedPanelKeys[ki]];
+          matchedKeySlug = keySlug;
           break;
         }
       }
 
-      // Де-слагификация для подписи (убираем retry, меняем -- → —, - → пробел)
-      var testTitle = t.name
+      // Извлекаем только заголовок теста: снимаем префикс файла и хеш Playwright
+      // Формат t.name: {folder}-{file}-{hash}-{test-title-slug}
+      var rawTitle = t.name;
+      if (matchedKeySlug) {
+        rawTitle = rawTitle.slice(matchedKeySlug.length + 1); // убираем "folder-file-"
+        rawTitle = rawTitle.replace(/^[0-9a-f]+-/i, '');     // убираем хеш (напр. "582fe-")
+      }
+      var testTitle = rawTitle
         .replace(/-retry\d+$/, '')
         .replace(/--/g, ' — ')
         .replace(/-/g, ' ')
