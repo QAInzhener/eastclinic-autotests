@@ -118,7 +118,7 @@ header .env-toggle {
   border-radius: 10px;
   padding: 16px 20px;
   margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  box-shadow: 0 4px 20px rgba(0,0,0,.09);
   display: flex;
   align-items: center;
   gap: 16px;
@@ -130,8 +130,9 @@ header .env-toggle {
   top: 46px;
   z-index: 99;
   border-radius: 0 0 10px 10px;
-  box-shadow: 0 3px 8px rgba(0,0,0,.15);
+  box-shadow: 0 6px 24px rgba(0,0,0,.11);
 }
+.dark .topbar, .dark .topbar.pinned { box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 .pin-btn {
   position: absolute;
   top: 8px;
@@ -235,7 +236,9 @@ header .env-toggle {
 .dark .pill-running { background: #0d47a1; color: #90caf9; }
 .dark .pill-fail    { background: #7f0000; color: #ef9a9a; }
 
-.suite { background: var(--surface); border-radius: 10px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.1); overflow: hidden; transition: opacity .15s; }
+.suite { background: var(--surface); border-radius: 10px; margin-bottom: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.09); overflow: hidden; transition: opacity .15s; }
+.dark .suite { box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.dark .log-wrap { box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 .suite.dragging { opacity: .4; }
 .suite.drag-over-top    { box-shadow: 0 -3px 0 #1976d2, 0 1px 3px rgba(0,0,0,.1); }
 .suite.drag-over-bottom { box-shadow: 0 3px 0 #1976d2, 0 1px 3px rgba(0,0,0,.1); }
@@ -375,7 +378,7 @@ header .env-toggle {
 .log-wrap {
   background: var(--surface);
   border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  box-shadow: 0 4px 20px rgba(0,0,0,.09);
   overflow: hidden;
   margin-top: 16px;
 }
