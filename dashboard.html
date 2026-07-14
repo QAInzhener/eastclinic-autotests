@@ -683,6 +683,7 @@ var logFullscreen = false;
 var testRegistry = []; // { file, grep }
 var testList = {};     // { 'folder/file.test.js': ['Test name', ...] }
 var selectedEnv = localStorage.getItem('testEnv') || 'prod';
+var serverPanelOrder = [];
 
 // ---- Environment ----
 function applyEnvButtons() {
@@ -699,8 +700,7 @@ function selectEnv(env) {
   loadLog();
 }
 applyEnvButtons();
-loadResults();
-loadLog();
+loadPanelOrder(function() { loadResults(); loadLog(); });
 
 // ---- Helpers ----
 function toggleLog() {
@@ -941,8 +941,10 @@ function renderSuites(data) {
   var html = '';
   var failedSuiteIds = [];
 
-  var savedOrder = [];
-  try { savedOrder = JSON.parse(localStorage.getItem('panelOrder') || '[]'); } catch(e) {}
+  var savedOrder = serverPanelOrder.length ? serverPanelOrder : [];
+  if (!savedOrder.length) {
+    try { savedOrder = JSON.parse(localStorage.getItem('panelOrder') || '[]'); } catch(e) {}
+  }
   if (savedOrder.length) {
     groupOrder.sort(function(a, b) {
       var ia = savedOrder.indexOf(a), ib = savedOrder.indexOf(b);
@@ -1146,7 +1148,34 @@ function savePanelOrder() {
   document.querySelectorAll('#suitesContainer .suite[data-key]').forEach(function(s) {
     order.push(s.dataset.key);
   });
+  serverPanelOrder = order;
   localStorage.setItem('panelOrder', JSON.stringify(order));
+  fetch('/api/panel-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order: order }),
+  }).catch(function() {});
+}
+
+function loadPanelOrder(callback) {
+  fetch('/api/panel-order').then(function(r) { return r.json(); }).then(function(order) {
+    if (order && order.length) {
+      serverPanelOrder = order;
+      localStorage.setItem('panelOrder', JSON.stringify(order));
+    }
+    if (callback) callback();
+  }).catch(function() { if (callback) callback(); });
+}
+
+function applyPanelOrder(order) {
+  var container = document.getElementById('suitesContainer');
+  var suites = Array.from(container.querySelectorAll('.suite[data-key]'));
+  suites.sort(function(a, b) {
+    var ia = order.indexOf(a.dataset.key), ib = order.indexOf(b.dataset.key);
+    if (ia < 0) ia = 9999; if (ib < 0) ib = 9999;
+    return ia - ib;
+  });
+  suites.forEach(function(el) { container.appendChild(el); });
 }
 
 // ---- Drag & Drop для тест-строк внутри блоков ----
@@ -1361,8 +1390,7 @@ evtSource.addEventListener('connected', function() {
       startTimerAt(d.startedAt || Date.now());
       startPolling();
     }
-    loadResults();
-    loadLog();
+    loadPanelOrder(function() { loadResults(); loadLog(); });
   });
 });
 
@@ -1415,6 +1443,16 @@ evtSource.addEventListener('done', function(e) {
   }
   loadResults();
   loadLog();
+});
+
+evtSource.addEventListener('panel-order', function(e) {
+  if (_dragSrc) return;
+  var data = JSON.parse(e.data);
+  if (!data.order || !data.order.length) return;
+  if (JSON.stringify(data.order) === JSON.stringify(serverPanelOrder)) return;
+  serverPanelOrder = data.order;
+  localStorage.setItem('panelOrder', JSON.stringify(data.order));
+  applyPanelOrder(data.order);
 });
 
 evtSource.onerror = function() {
