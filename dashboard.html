@@ -1162,6 +1162,18 @@ function loadPanelOrder(callback) {
     if (order && order.length) {
       serverPanelOrder = order;
       localStorage.setItem('panelOrder', JSON.stringify(order));
+    } else {
+      // Сервер не знает порядка — если в localStorage есть, загружаем его на сервер
+      var local = [];
+      try { local = JSON.parse(localStorage.getItem('panelOrder') || '[]'); } catch(e) {}
+      if (local.length) {
+        serverPanelOrder = local;
+        fetch('/api/panel-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: local }),
+        }).catch(function() {});
+      }
     }
     if (callback) callback();
   }).catch(function() { if (callback) callback(); });
