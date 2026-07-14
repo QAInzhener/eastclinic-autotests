@@ -636,8 +636,30 @@ function toggleTheme() {
   darkMode = !darkMode;
   localStorage.setItem('theme', darkMode ? 'dark' : 'light');
   applyTheme();
+  fetch('/api/theme', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ theme: darkMode ? 'dark' : 'light' }),
+  }).catch(function() {});
 }
-applyTheme();
+// Загружаем тему с сервера: она общая для всех браузеров
+fetch('/api/theme').then(function(r) { return r.json(); }).then(function(d) {
+  if (d && d.theme) {
+    darkMode = d.theme === 'dark';
+    localStorage.setItem('theme', d.theme);
+  } else if (!d || !d.theme) {
+    // Сервер не знает темы — загружаем свою локальную на сервер
+    var local = localStorage.getItem('theme');
+    if (local) {
+      fetch('/api/theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: local }),
+      }).catch(function() {});
+    }
+  }
+  applyTheme();
+}).catch(function() { applyTheme(); });
 
 // ---- Pin topbar ----
 var topbarPinned = localStorage.getItem('topbarPinned') === 'true';
@@ -1463,6 +1485,15 @@ evtSource.addEventListener('done', function(e) {
   }
   loadResults();
   loadLog();
+});
+
+evtSource.addEventListener('theme', function(e) {
+  var data = JSON.parse(e.data);
+  if (!data.theme) return;
+  if ((data.theme === 'dark') === darkMode) return;
+  darkMode = data.theme === 'dark';
+  localStorage.setItem('theme', data.theme);
+  applyTheme();
 });
 
 evtSource.addEventListener('panel-order', function(e) {

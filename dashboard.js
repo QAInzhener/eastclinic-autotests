@@ -12,6 +12,7 @@ const HTML_PATH = join(ROOT, 'dashboard.html');
 const REPORT_DIR = join(ROOT, 'playwright-report');
 const TEST_RESULTS_DIR = join(ROOT, 'test-results');
 const PANEL_ORDER_PATH = join(ROOT, 'results', 'panel-order.json');
+const THEME_PATH = join(ROOT, 'results', 'theme.json');
 
 const REPORT_MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -497,6 +498,25 @@ const server = http.createServer(async (req, res) => {
     const mime = REPORT_MIME[extname(filePath).toLowerCase()] || 'application/octet-stream';
     res.writeHead(200, { 'Content-Type': mime });
     return res.end(readFileSync(filePath));
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/theme') {
+    let theme = null;
+    if (existsSync(THEME_PATH)) {
+      try { theme = JSON.parse(readFileSync(THEME_PATH, 'utf8')).theme; } catch {}
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ theme: theme || null }));
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/theme') {
+    const body = await parseBody(req);
+    if (body.theme === 'dark' || body.theme === 'light') {
+      try { writeFileSync(THEME_PATH, JSON.stringify({ theme: body.theme })); } catch {}
+      broadcast('theme', { theme: body.theme });
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true }));
   }
 
   if (req.method === 'GET' && url.pathname === '/api/panel-order') {
