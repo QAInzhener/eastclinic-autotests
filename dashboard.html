@@ -626,29 +626,43 @@ header .env-toggle {
 
 <script>
 // ---- Theme ----
+// themeChosen = пользователь этого браузера уже сам переключал тему
+var themeChosen = localStorage.getItem('themeChosen') === 'yes';
 var darkMode = localStorage.getItem('theme') === 'dark';
+
 function applyTheme() {
   document.documentElement.classList.toggle('dark', darkMode);
   var btn = document.getElementById('themeBtn');
   if (btn) btn.innerHTML = darkMode ? '&#9728; Светлая тема' : '&#9790; Тёмная тема';
 }
+
 function toggleTheme() {
   darkMode = !darkMode;
+  themeChosen = true;
+  localStorage.setItem('themeChosen', 'yes');
   localStorage.setItem('theme', darkMode ? 'dark' : 'light');
   applyTheme();
+  // Обновляем серверную тему, чтобы новые посетители видели актуальную
   fetch('/api/theme', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ theme: darkMode ? 'dark' : 'light' }),
   }).catch(function() {});
 }
-// Загружаем тему с сервера: она общая для всех браузеров
+
+// Применяем сразу из localStorage, чтобы не было вспышки белого экрана
+applyTheme();
+
+// Уточняем у сервера: если пользователь ещё не выбирал тему сам —
+// берём серверную (общую). Если уже выбирал — игнорируем сервер.
 fetch('/api/theme').then(function(r) { return r.json(); }).then(function(d) {
+  if (themeChosen) return; // личный выбор важнее серверного
   if (d && d.theme) {
     darkMode = d.theme === 'dark';
     localStorage.setItem('theme', d.theme);
-  } else if (!d || !d.theme) {
-    // Сервер не знает темы — загружаем свою локальную на сервер
+    applyTheme();
+  } else {
+    // Сервер ещё не знает темы — загружаем свою локальную на сервер
     var local = localStorage.getItem('theme');
     if (local) {
       fetch('/api/theme', {
@@ -658,8 +672,7 @@ fetch('/api/theme').then(function(r) { return r.json(); }).then(function(d) {
       }).catch(function() {});
     }
   }
-  applyTheme();
-}).catch(function() { applyTheme(); });
+}).catch(function() {});
 
 // ---- Pin topbar ----
 var topbarPinned = localStorage.getItem('topbarPinned') === 'true';
@@ -1488,6 +1501,7 @@ evtSource.addEventListener('done', function(e) {
 });
 
 evtSource.addEventListener('theme', function(e) {
+  if (themeChosen) return; // у этого пользователя свой выбор — не трогаем
   var data = JSON.parse(e.data);
   if (!data.theme) return;
   if ((data.theme === 'dark') === darkMode) return;
