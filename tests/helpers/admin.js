@@ -4,7 +4,7 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASS = process.env.ADMIN_PASS;
 
 async function goToReviews(page) {
-  await page.getByRole('link', { name: 'Отзывы' }).click();
+  await page.locator('a[href="#/reviews"]').click();
   await page.waitForFunction(
     () => [...document.querySelectorAll('th')].some(th => th.textContent.trim() === 'Отзыв'),
     { timeout: 15000 }

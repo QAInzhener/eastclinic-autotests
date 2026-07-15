@@ -22,26 +22,38 @@ async function acceptCookies(page) {
 // Возвращает URL n-го врача со страницы /vrachi (n начинается с 1).
 // Если врачей меньше n — берёт последнего доступного.
 async function getNthDoctorUrl(page, n) {
-  await page.goto(BASE_URL + '/vrachi');
-  await page.waitForLoadState('domcontentloaded');
-  await acceptCookies(page);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await page.goto(BASE_URL + '/vrachi');
+    await page.waitForLoadState('domcontentloaded');
+    await acceptCookies(page);
 
-  const href = await page.evaluate((n) => {
-    const seen = new Set();
-    const unique = [...document.querySelectorAll('a[href*="/vrach/"]')]
-      .filter(e => {
-        if (e.offsetParent === null) return false;
-        const path = new URL(e.href).pathname;
-        if (!/\/vrach\/[a-z]/.test(path) || seen.has(path)) return false;
-        seen.add(path);
-        return true;
-      });
-    const target = unique[n - 1] || unique[unique.length - 1];
-    return target ? target.href : null;
-  }, n);
+    const maintenance = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
+    if (maintenance) {
+      if (attempt < 3) {
+        console.log(`[getNthDoctorUrl] Сайт в техобслуживании, попытка ${attempt}/3, ждём 20с...`);
+        await page.waitForTimeout(20000);
+        continue;
+      }
+      throw new Error('Сайт недоступен (техобслуживание) — страница /vrachi после 3 попыток');
+    }
 
-  if (!href) throw new Error('Не найдена ссылка на врача на странице /vrachi');
-  return href;
+    const href = await page.evaluate((n) => {
+      const seen = new Set();
+      const unique = [...document.querySelectorAll('a[href*="/vrach/"]')]
+        .filter(e => {
+          if (e.offsetParent === null) return false;
+          const path = new URL(e.href).pathname;
+          if (!/\/vrach\/[a-z]/.test(path) || seen.has(path)) return false;
+          seen.add(path);
+          return true;
+        });
+      const target = unique[n - 1] || unique[unique.length - 1];
+      return target ? target.href : null;
+    }, n);
+
+    if (href) return href;
+  }
+  throw new Error('Не найдена ссылка на врача на странице /vrachi');
 }
 
 // На некоторых страницах слоты рендерятся для всех дат, но видимы только для активной.

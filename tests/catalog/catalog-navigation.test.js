@@ -11,14 +11,28 @@ async function acceptCookies(page) {
 }
 
 async function openCatalog(page) {
-  await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await acceptCookies(page);
-  const crashed = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
-  if (crashed) throw new Error('Приложение упало — страница /catalog показывает экран ошибки');
-  await page.locator('.catalog-link').first().waitFor({ state: 'visible', timeout: 8000 });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await page.goto(CATALOG_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await acceptCookies(page);
+
+    const crashed = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+    if (crashed) throw new Error('Приложение упало — страница /catalog показывает экран ошибки');
+
+    const maintenance = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
+    if (!maintenance) {
+      await page.locator('.catalog-link').first().waitFor({ state: 'visible', timeout: 10000 });
+      return;
+    }
+
+    if (attempt < 3) {
+      console.log(`[openCatalog] Сайт в техобслуживании, попытка ${attempt}/3, ждём 20с...`);
+      await page.waitForTimeout(20000);
+    }
+  }
+  throw new Error('Сайт недоступен (техобслуживание) после 3 попыток');
 }
 
-test.describe.configure({ retries: 0 });
+test.describe.configure({ retries: 2 });
 
 test('Каталог услуг — страница загружается, в левой панели отображаются разделы, «Полный список» активен', async ({ page }) => {
   await openCatalog(page);
