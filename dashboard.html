@@ -1630,7 +1630,7 @@ function openTracesPanel() {
           '<div class="trace-meta">' + esc(date) + ' &nbsp;&middot;&nbsp; ' + esc(size) + '</div>' +
         '</div>' +
         '<div class="trace-btns">' +
-          '<button class="trace-view-btn" data-rel="' + encodedRel + '" data-name="' + esc(t.name) + '">Просмотреть</button>' +
+          '<button class="trace-view-btn" onclick="viewTrace(this.dataset.rel,this.dataset.name)" data-rel="' + encodedRel + '" data-name="' + esc(t.name) + '">Просмотреть</button>' +
           '<a class="trace-dl-btn" href="/traces/' + encodedRel + '" download="' + esc(t.name) + '-trace.zip" target="_blank">Скачать</a>' +
         '</div>' +
       '</div>';
@@ -1648,14 +1648,8 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeTracesPanel();
 });
 
-document.addEventListener('click', function(e) {
-  var btn = e.target.closest('.trace-view-btn');
-  if (!btn) return;
-  e.stopPropagation();
-  var encodedRel = btn.dataset.rel;
-  var name = btn.dataset.name;
+function viewTrace(encodedRel, name) {
   if (!navigator.serviceWorker) {
-    // SW недоступен (HTTP на IP-адресе) — скачиваем zip автоматически
     var link = document.createElement('a');
     link.href = '/traces/' + encodedRel;
     link.download = name + '-trace.zip';
@@ -1666,7 +1660,7 @@ document.addEventListener('click', function(e) {
   }
   var traceUrl = window.location.origin + '/traces/' + encodedRel;
   window.open('/trace-viewer/?trace=' + encodeURIComponent(traceUrl), '_blank');
-});
+}
 </script>
 </body>
 </html>
