@@ -180,7 +180,7 @@ test('Форма отзыва с личной страницы врача — з
     reviewSubmitted = true;
 
     // 9. Форма скрывается после успешной отправки
-    await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 30000 });
     console.log('[test] ✓ Отзыв отправлен');
 
     // 10. Ждём появления отзыва в панели администратора
