@@ -86,19 +86,19 @@ test('Поле поиска: правая часть — выбор каждог
   async function gotoHomeAndOpenDropdown() {
     await page.goto(BASE_URL + '/', { waitUntil: 'load' });
     await page.locator('.clinic-search').waitFor({ state: 'visible', timeout: 15000 });
-    await page.waitForTimeout(500);
+    // Принять куки ДО открытия дропдауна — иначе закрывает его
+    try { await page.getByRole('button', { name: /принять/i }).click({ timeout: 2000 }); } catch {}
     await page.locator('.clinic-search').first().click();
-    await page.locator('.clinics-list').waitFor({ state: 'visible', timeout: 10000 });
-    // Ждём стабилизации Vue-рендера: первый span в списке должен быть видим
-    await page.locator('.clinics-list span').first().waitFor({ state: 'visible', timeout: 5000 });
+    // Ждём пока список клиник полностью загрузится (span.text-main с «Сокол» — первый пункт)
+    await page.locator('span.text-main').filter({ hasText: 'Сокол' }).first()
+      .waitFor({ state: 'visible', timeout: 15000 });
   }
 
   await gotoHomeAndOpenDropdown();
-  try { await page.getByRole('button', { name: /принять/i }).click({ timeout: 2000 }); } catch {}
 
   for (const { name, url } of CLINIC_ITEMS) {
-    const clinicSpan = page.locator('.clinics-list').locator('span').filter({ hasText: name }).first();
-    await clinicSpan.waitFor({ state: 'visible', timeout: 8000 });
+    const clinicSpan = page.locator('span.text-main').filter({ hasText: name }).first();
+    await clinicSpan.waitFor({ state: 'visible', timeout: 5000 });
     await clinicSpan.click();
     await page.waitForURL('**' + url + '**', { timeout: 30000 });
     expect(page.url()).toContain(url);
@@ -106,8 +106,8 @@ test('Поле поиска: правая часть — выбор каждог
   }
 
   // Калуга — последний филиал
-  const kalugaSpan = page.locator('.clinics-list').locator('span').filter({ hasText: 'Калуга' }).first();
-  await kalugaSpan.waitFor({ state: 'visible', timeout: 8000 });
+  const kalugaSpan = page.locator('span.text-main').filter({ hasText: 'Калуга' }).first();
+  await kalugaSpan.waitFor({ state: 'visible', timeout: 5000 });
   await kalugaSpan.click();
   await page.waitForURL('**/vrachi/kaluga**', { timeout: 30000 });
   expect(page.url()).toContain('/vrachi/kaluga');
