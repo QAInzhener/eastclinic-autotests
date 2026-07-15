@@ -26,7 +26,13 @@ const REPORT_MIME = {
   '.webm': 'video/webm',
   '.zip': 'application/zip',
   '.md': 'text/markdown; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
+  '.ttf': 'font/ttf',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.wasm': 'application/wasm',
 };
+const TRACE_VIEWER_DIR = join(ROOT, 'node_modules', 'playwright-core', 'lib', 'vite', 'traceViewer');
 
 function normEnv(env) {
   return env === 'dev' ? 'dev' : 'prod';
@@ -565,6 +571,18 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/api/traces') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     return res.end(JSON.stringify(scanTraces()));
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/trace-viewer/')) {
+    const rel = url.pathname.slice('/trace-viewer/'.length) || 'index.html';
+    const filePath = normalize(join(TRACE_VIEWER_DIR, rel));
+    if (!filePath.startsWith(TRACE_VIEWER_DIR) || !existsSync(filePath)) {
+      res.writeHead(404);
+      return res.end('Not found');
+    }
+    const mime = REPORT_MIME[extname(filePath).toLowerCase()] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': mime });
+    return res.end(readFileSync(filePath));
   }
 
   if (req.method === 'GET' && url.pathname.startsWith('/traces/')) {

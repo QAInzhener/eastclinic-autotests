@@ -521,10 +521,11 @@ header .env-toggle {
 .trace-info { flex: 1; min-width: 0; }
 .trace-name { font-size: 13px; font-weight: 500; word-break: break-all; }
 .trace-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.trace-btns { display: flex; gap: 8px; flex-shrink: 0; }
 .trace-dl-btn {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 10px 22px;
+  padding: 8px 16px;
   background: var(--run-all-bg);
   color: white;
   border: none;
@@ -534,9 +535,23 @@ header .env-toggle {
   font-family: inherit;
   text-decoration: none;
   display: inline-block;
-  flex-shrink: 0;
 }
 .trace-dl-btn:hover { background: var(--run-all-hover); }
+.trace-view-btn {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  background: var(--run-file-bg);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  text-decoration: none;
+  display: inline-block;
+}
+.trace-view-btn:hover { background: var(--run-file-hover); }
 .trace-empty { text-align: center; padding: 32px 0; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
 
 /* Трейсы: серый текст в светлой теме → чёрный */
@@ -1597,13 +1612,17 @@ function openTracesPanel() {
 
       var displayName = panelName || t.name;
 
+      var viewerUrl = '/trace-viewer/?trace=' + encodeURIComponent(window.location.origin + '/traces/' + encodedRel);
       return '<div class="trace-item">' +
         '<div class="trace-info">' +
           '<div class="trace-name">' + esc(displayName) + '</div>' +
           (panelName ? '<div class="trace-subtitle">' + esc(testTitle) + '</div>' : '') +
           '<div class="trace-meta">' + esc(date) + ' &nbsp;&middot;&nbsp; ' + esc(size) + '</div>' +
         '</div>' +
-        '<a class="trace-dl-btn" href="/traces/' + encodedRel + '" download="' + esc(t.name) + '-trace.zip" target="_blank">Скачать</a>' +
+        '<div class="trace-btns">' +
+          '<a class="trace-view-btn" href="' + viewerUrl + '" target="_blank">Просмотреть</a>' +
+          '<a class="trace-dl-btn" href="/traces/' + encodedRel + '" download="' + esc(t.name) + '-trace.zip" target="_blank">Скачать</a>' +
+        '</div>' +
       '</div>';
     }).join('');
   }).catch(function() {
