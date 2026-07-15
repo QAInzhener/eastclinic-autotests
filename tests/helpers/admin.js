@@ -36,21 +36,22 @@ async function showAllReviews(page) {
 async function loginToAdmin(page) {
   await page.goto(ADMIN_URL);
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(2000);
+  // Vue SPA инициализируется медленно — даём время чтобы форма логина или панель появились
+  await page.waitForTimeout(4000);
 
   const passInput = page.locator('input[type="password"]');
   if (await passInput.isVisible()) {
     await page.locator('input[type="email"], input[type="text"]').first().fill(ADMIN_EMAIL);
     await passInput.fill(ADMIN_PASS);
     await page.getByRole('button', { name: /войти/i }).click();
-    await page.waitForURL(url => url.href.includes('nimda-panel'), { timeout: 15000 });
-    await page.waitForTimeout(1500);
-    // SAKAI иногда делает редирект на главную после логина — возвращаемся в админку
-    if (!page.url().includes('nimda-panel')) {
-      await page.goto(ADMIN_URL);
-      await page.waitForLoadState('domcontentloaded');
-      await page.waitForTimeout(2000);
-    }
+    await page.waitForTimeout(4000);  // Ждём завершения всех редиректов после логина
+  }
+
+  // Если редирект увёл с панели (SAKAI иногда перебрасывает на главную) — возвращаемся
+  if (!page.url().includes('nimda-panel')) {
+    await page.goto(ADMIN_URL);
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(4000);
   }
 
   await goToReviews(page);
