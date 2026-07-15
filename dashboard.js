@@ -574,11 +574,16 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(404);
       return res.end('Трейс не найден');
     }
+    let data;
+    try { data = readFileSync(filePath); } catch {
+      res.writeHead(500);
+      return res.end('Ошибка чтения файла трейса');
+    }
     res.writeHead(200, {
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="${basename(filePath)}"`,
     });
-    return res.end(readFileSync(filePath));
+    return res.end(data);
   }
 
   if (req.method === 'GET' && url.pathname === '/api/events') {

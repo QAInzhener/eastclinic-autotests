@@ -1603,7 +1603,7 @@ function openTracesPanel() {
           (panelName ? '<div class="trace-subtitle">' + esc(testTitle) + '</div>' : '') +
           '<div class="trace-meta">' + esc(date) + ' &nbsp;&middot;&nbsp; ' + esc(size) + '</div>' +
         '</div>' +
-        '<a class="trace-dl-btn" href="/traces/' + encodedRel + '" download="' + esc(t.name) + '-trace.zip">Скачать</a>' +
+        '<a class="trace-dl-btn" href="/traces/' + encodedRel + '" download="' + esc(t.name) + '-trace.zip" target="_blank">Скачать</a>' +
       '</div>';
     }).join('');
   }).catch(function() {
