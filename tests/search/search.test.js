@@ -89,22 +89,27 @@ test('Поле поиска: правая часть — выбор каждог
     await page.waitForTimeout(500);
     await page.locator('.clinic-search').first().click();
     await page.locator('.clinics-list').waitFor({ state: 'visible', timeout: 10000 });
-    await page.waitForTimeout(800);
+    // Ждём стабилизации Vue-рендера: первый span в списке должен быть видим
+    await page.locator('.clinics-list span').first().waitFor({ state: 'visible', timeout: 5000 });
   }
 
   await gotoHomeAndOpenDropdown();
   try { await page.getByRole('button', { name: /принять/i }).click({ timeout: 2000 }); } catch {}
 
   for (const { name, url } of CLINIC_ITEMS) {
-    await page.locator('span').filter({ hasText: name }).first().click({ force: true });
-    await page.waitForURL('**' + url + '**', { timeout: 15000 });
+    const clinicSpan = page.locator('.clinics-list').locator('span').filter({ hasText: name }).first();
+    await clinicSpan.waitFor({ state: 'visible', timeout: 8000 });
+    await clinicSpan.click();
+    await page.waitForURL('**' + url + '**', { timeout: 30000 });
     expect(page.url()).toContain(url);
     await gotoHomeAndOpenDropdown();
   }
 
   // Калуга — последний филиал
-  await page.locator('span').filter({ hasText: 'Калуга' }).first().click({ force: true });
-  await page.waitForURL('**/vrachi/kaluga**', { timeout: 15000 });
+  const kalugaSpan = page.locator('.clinics-list').locator('span').filter({ hasText: 'Калуга' }).first();
+  await kalugaSpan.waitFor({ state: 'visible', timeout: 8000 });
+  await kalugaSpan.click();
+  await page.waitForURL('**/vrachi/kaluga**', { timeout: 30000 });
   expect(page.url()).toContain('/vrachi/kaluga');
 
   // Нажимаем × — фильтр сбрасывается, переход на /vrachi (все клиники)
