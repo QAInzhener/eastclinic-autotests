@@ -1656,6 +1656,7 @@ function viewTrace(encodedRel, name) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    window.open('https://trace.playwright.dev', '_blank');
     return;
   }
   var traceUrl = window.location.origin + '/traces/' + encodedRel;
