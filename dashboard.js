@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, extname, normalize, basename } from 'path';
+import { createRequire } from 'module';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = 3000;
@@ -32,7 +33,11 @@ const REPORT_MIME = {
   '.woff2': 'font/woff2',
   '.wasm': 'application/wasm',
 };
-const TRACE_VIEWER_DIR = join(ROOT, 'node_modules', 'playwright-core', 'lib', 'vite', 'traceViewer');
+const _require = createRequire(import.meta.url);
+let TRACE_VIEWER_DIR = '';
+try {
+  TRACE_VIEWER_DIR = join(dirname(_require.resolve('playwright-core/package.json')), 'lib', 'vite', 'traceViewer');
+} catch { console.warn('[dashboard] playwright-core not found — /trace-viewer/ will be unavailable'); }
 
 function normEnv(env) {
   return env === 'dev' ? 'dev' : 'prod';
@@ -574,11 +579,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && url.pathname.startsWith('/trace-viewer/')) {
+    if (!TRACE_VIEWER_DIR) { res.writeHead(503); return res.end('playwright-core не найден'); }
     const rel = url.pathname.slice('/trace-viewer/'.length) || 'index.html';
     const filePath = normalize(join(TRACE_VIEWER_DIR, rel));
     if (!filePath.startsWith(TRACE_VIEWER_DIR) || !existsSync(filePath)) {
       res.writeHead(404);
-      return res.end('Not found');
+      return res.end('Not found: ' + filePath);
     }
     const mime = REPORT_MIME[extname(filePath).toLowerCase()] || 'application/octet-stream';
     res.writeHead(200, { 'Content-Type': mime });
