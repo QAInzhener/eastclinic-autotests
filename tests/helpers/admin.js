@@ -5,10 +5,11 @@ const ADMIN_PASS = process.env.ADMIN_PASS;
 const ADMIN_URL = process.env.TEST_ADMIN_URL || 'https://eastclinic.ru/nimda-panel';
 
 async function goToReviews(page) {
-  // Если уже на странице отзывов (SAKAI после логина возвращает туда автоматически) — не кликаем
+  // Если уже на странице отзывов (SAKAI восстанавливает маршрут) — не кликаем
+  // Даём до 8с — Vue Router может восстанавливать маршрут медленнее 2с
   const alreadyHere = await page.waitForFunction(
     () => [...document.querySelectorAll('th')].some(th => th.textContent.trim() === 'Отзыв'),
-    { timeout: 2000 }
+    { timeout: 8000 }
   ).then(() => true).catch(() => false);
 
   if (!alreadyHere) {
@@ -44,6 +45,12 @@ async function loginToAdmin(page) {
     await page.getByRole('button', { name: /войти/i }).click();
     await page.waitForURL(url => url.href.includes('nimda-panel'), { timeout: 15000 });
     await page.waitForTimeout(1500);
+    // SAKAI иногда делает редирект на главную после логина — возвращаемся в админку
+    if (!page.url().includes('nimda-panel')) {
+      await page.goto(ADMIN_URL);
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(2000);
+    }
   }
 
   await goToReviews(page);
