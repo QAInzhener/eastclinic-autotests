@@ -307,12 +307,36 @@ function runTests(file = '', grep = '', line = 0, env = 'prod') {
 }
 
 function stopTests() {
-  if (!isRunning || !currentProc || !currentProc.pid) return false;
+  if (!isRunning) return false;
   stopRequested = true;
-  // shell:true spawns npx via cmd.exe, which spawns playwright, which spawns the browser —
-  // proc.kill() only kills the cmd.exe wrapper. taskkill /T kills the whole process tree.
-  spawn('taskkill', ['/pid', currentProc.pid, '/T', '/F'], { shell: true });
-  return true;
+  if (currentProc && currentProc.pid) {
+    // UI-triggered run: kill the cmd.exe tree spawned by runTests()
+    spawn('taskkill', ['/pid', currentProc.pid, '/T', '/F'], { shell: true });
+    return true;
+  }
+  // Cron run (run-and-capture.js): kill via PID file
+  const pidPath = join(ROOT, 'results', 'cron.pid');
+  if (existsSync(pidPath)) {
+    try {
+      const pid = parseInt(readFileSync(pidPath, 'utf8').trim());
+      if (pid) {
+        spawn('taskkill', ['/pid', pid, '/T', '/F'], { shell: true });
+        // run-and-capture.js won't send /api/internal/done after being killed —
+        // broadcast done ourselves after a short delay
+        clearCronWatchdog();
+        setTimeout(() => {
+          if (isRunning) {
+            isRunning = false;
+            currentProc = null;
+            saveLastLog(currentEnv);
+            broadcast('done', { code: 1, stopped: true });
+          }
+        }, 2000);
+        return true;
+      }
+    } catch {}
+  }
+  return false;
 }
 
 // ---- Trace scanning ----

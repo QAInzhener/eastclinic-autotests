@@ -1,8 +1,10 @@
 import { spawn } from 'child_process';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import http from 'http';
 
 const env = process.argv[2] || 'prod';
+const PID_FILE = 'results/cron.pid';
+try { writeFileSync(PID_FILE, process.pid.toString()); } catch {}
 const isDev = env === 'dev';
 const baseUrl = isDev ? 'http://dev1.eastclinic.local' : 'https://eastclinic.ru';
 const label = 'все тесты (' + (isDev ? 'dev1.eastclinic.local' : 'eastclinic.ru') + ')';
@@ -72,6 +74,7 @@ proc.on('close', code => {
     }
   } catch (e) { console.error('merge error:', e.message); }
 
+  try { unlinkSync(PID_FILE); } catch {}
   notifyDashboard('/api/internal/done', { code: code || 0 });
   process.exit(code || 0);
 });

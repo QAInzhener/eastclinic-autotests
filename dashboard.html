@@ -1398,9 +1398,21 @@ function setRunning(r) {
 
 function stopTests() {
   if (!running) return;
-  document.getElementById('stopBtn').disabled = true;
-  document.getElementById('stopBtn').textContent = 'Останавливаю...';
-  fetch('/api/stop', { method: 'POST' }).catch(function(e) { console.error('Ошибка остановки:', e); });
+  var btn = document.getElementById('stopBtn');
+  btn.disabled = true;
+  btn.textContent = 'Останавливаю...';
+  fetch('/api/stop', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.stopped) {
+        btn.disabled = false;
+        btn.textContent = 'Остановить';
+      }
+    })
+    .catch(function() {
+      btn.disabled = false;
+      btn.textContent = 'Остановить';
+    });
 }
 
 function loadResults() {
