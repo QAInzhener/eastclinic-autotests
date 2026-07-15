@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASS = process.env.ADMIN_PASS;
+const ADMIN_URL = process.env.TEST_ADMIN_URL || 'https://eastclinic.ru/nimda-panel/';
 
 async function goToReviews(page) {
   await page.locator('a[href="#/reviews"]').click();
@@ -23,7 +24,7 @@ async function showAllReviews(page) {
 }
 
 async function loginToAdmin(page) {
-  await page.goto('https://eastclinic.ru/nimda-panel/');
+  await page.goto(ADMIN_URL);
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(2000);
 
