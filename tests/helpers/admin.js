@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASS = process.env.ADMIN_PASS;
-const ADMIN_URL = process.env.TEST_ADMIN_URL || 'https://eastclinic.ru/nimda-panel/';
+const ADMIN_URL = process.env.TEST_ADMIN_URL || 'https://eastclinic.ru/nimda-panel';
 
 async function goToReviews(page) {
   await page.locator('a[href*="reviews"]').first().click();
@@ -33,7 +33,7 @@ async function loginToAdmin(page) {
     await page.locator('input[type="email"], input[type="text"]').first().fill(ADMIN_EMAIL);
     await passInput.fill(ADMIN_PASS);
     await page.getByRole('button', { name: /войти/i }).click();
-    await page.waitForURL('**/nimda-panel/**', { timeout: 15000 });
+    await page.waitForURL(url => url.includes('nimda-panel'), { timeout: 15000 });
     await page.waitForTimeout(1500);
   }
 
