@@ -33,7 +33,7 @@ async function loginToAdmin(page) {
     await page.locator('input[type="email"], input[type="text"]').first().fill(ADMIN_EMAIL);
     await passInput.fill(ADMIN_PASS);
     await page.getByRole('button', { name: /войти/i }).click();
-    await page.waitForURL(url => url.includes('nimda-panel'), { timeout: 15000 });
+    await page.waitForURL(url => url.href.includes('nimda-panel'), { timeout: 15000 });
     await page.waitForTimeout(1500);
   }
 
