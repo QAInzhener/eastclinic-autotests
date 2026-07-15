@@ -5,11 +5,20 @@ const ADMIN_PASS = process.env.ADMIN_PASS;
 const ADMIN_URL = process.env.TEST_ADMIN_URL || 'https://eastclinic.ru/nimda-panel';
 
 async function goToReviews(page) {
-  await page.locator('a[href*="reviews"]').first().click();
-  await page.waitForFunction(
+  // Если уже на странице отзывов (SAKAI после логина возвращает туда автоматически) — не кликаем
+  const alreadyHere = await page.waitForFunction(
     () => [...document.querySelectorAll('th')].some(th => th.textContent.trim() === 'Отзыв'),
-    { timeout: 15000 }
-  );
+    { timeout: 2000 }
+  ).then(() => true).catch(() => false);
+
+  if (!alreadyHere) {
+    // Ищем по тексту — href может различаться в prod (#/reviews) и dev1
+    await page.locator('a').filter({ hasText: /Отзывы/ }).first().click({ timeout: 10000 });
+    await page.waitForFunction(
+      () => [...document.querySelectorAll('th')].some(th => th.textContent.trim() === 'Отзыв'),
+      { timeout: 15000 }
+    );
+  }
   await page.waitForTimeout(500);
 }
 
