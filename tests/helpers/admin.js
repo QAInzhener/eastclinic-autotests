@@ -5,7 +5,7 @@ const ADMIN_PASS = process.env.ADMIN_PASS;
 const ADMIN_URL = process.env.TEST_ADMIN_URL || 'https://eastclinic.ru/nimda-panel/';
 
 async function goToReviews(page) {
-  await page.locator('a[href="#/reviews"]').click();
+  await page.locator('a[href*="reviews"]').first().click();
   await page.waitForFunction(
     () => [...document.querySelectorAll('th')].some(th => th.textContent.trim() === 'Отзыв'),
     { timeout: 15000 }
