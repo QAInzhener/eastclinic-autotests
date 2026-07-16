@@ -330,6 +330,15 @@ async function changeToNextAvailableSlot(page) {
   return { timeBlock, initialTime };
 }
 
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status === 'skipped') {
+    try {
+      const buf = await page.screenshot();
+      await testInfo.attach('screenshot', { body: buf, contentType: 'image/png' });
+    } catch {}
+  }
+});
+
 // --- Форма 6а: Запись на приём — слот на странице /vrachi ---
 
 test('Запись на приём (слот, /vrachi) — модалка открывается', async ({ page }) => {

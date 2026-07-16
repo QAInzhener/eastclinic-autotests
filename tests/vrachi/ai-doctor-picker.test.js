@@ -35,6 +35,15 @@ async function acceptCookies(page) {
   try { await page.getByRole('button', { name: /принять/i }).click({ timeout: 5000 }); } catch {}
 }
 
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status === 'skipped') {
+    try {
+      const buf = await page.screenshot();
+      await testInfo.attach('screenshot', { body: buf, contentType: 'image/png' });
+    } catch {}
+  }
+});
+
 test('ИИ подборщик врача — два запроса, запись к 9-му врачу, письмо с историей чата', async ({ page }) => {
   // Тест медленный из-за AI (≥15с ответ) и проверки почты — расширяем таймаут
   test.setTimeout(300000);
