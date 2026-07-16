@@ -4,9 +4,10 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT          = join(__dirname, '../..');
-const ROTATION_PATH = join(ROOT, 'results', 'specialty-rotation.json');
-const BASE_URL      = process.env.TEST_BASE_URL || 'https://eastclinic.ru';
+const ROOT      = join(__dirname, '../..');
+const BASE_URL  = process.env.TEST_BASE_URL || 'https://eastclinic.ru';
+const ENV_LABEL = BASE_URL.includes('dev') ? 'dev' : 'prod';
+const ROTATION_PATH = join(ROOT, 'results', `specialty-rotation-${ENV_LABEL}.json`);
 const VRACHI_URL    = BASE_URL + '/vrachi';
 
 const BATCH_SIZE  = 9;   // страниц специальностей за один прогон
