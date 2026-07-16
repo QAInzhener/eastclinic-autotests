@@ -56,9 +56,15 @@ async function collectPrices(page) {
       }
       const priceText = priceEl ? priceEl.textContent.trim() : null;
 
-      // Имя врача
-      const nameEl = card.querySelector('h2, h3, [class*="name"], [class*="doctor"]:not([class*="container"])');
-      const name   = (nameEl ? nameEl.textContent.trim() : '').slice(0, 60) || `Врач #${idx + 1}`;
+      // Имя врача: пробуем несколько вариантов
+      const nameEl =
+        card.querySelector('[class*="doctor-name"]') ||
+        card.querySelector('[class*="name"]') ||
+        card.querySelector('h2') ||
+        card.querySelector('h3') ||
+        card.querySelector('a[href*="/vrach/"]');
+      const rawName = nameEl ? nameEl.textContent.replace(/\s+/g, ' ').trim() : '';
+      const name    = rawName.slice(0, 60) || `Врач #${idx + 1}`;
 
       return { pos: idx + 1, name, priceText };
     });
@@ -128,14 +134,15 @@ async function checkPriceSorting(page, url) {
 
 // ── Тесты ────────────────────────────────────────────────────
 
-// Все тесты в файле последовательно: beforeAll гарантированно
-// выполнится в том же воркере, что и сами тесты
-test.describe.configure({ mode: 'serial' });
-
-const specialtyUrls = []; // заполняется в beforeAll
+const specialtyUrls = []; // заполняется в beforeAll единожды
 
 test.describe('Сортировка врачей по цене', () => {
+  // retries: 0 внутри describe — переопределяет глобальный retries:1.
+  // Без этого при падении теста beforeAll перезапускается с новым батчем.
+  test.describe.configure({ retries: 0 });
+
   test.beforeAll(async ({ browser }) => {
+    if (specialtyUrls.length > 0) return; // уже инициализированы — пропускаем
     const ctx  = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await ctx.newPage();
     try {
