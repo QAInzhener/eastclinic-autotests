@@ -9,8 +9,8 @@ const ROTATION_PATH = join(ROOT, 'results', 'specialty-rotation.json');
 const BASE_URL      = process.env.TEST_BASE_URL || 'https://eastclinic.ru';
 const VRACHI_URL    = BASE_URL + '/vrachi';
 
-const BATCH_SIZE    = 9;   // страниц специальностей за один прогон
-const CARDS_LIMIT   = 20;  // первые N карточек для проверки
+const BATCH_SIZE  = 9;   // страниц специальностей за один прогон
+const LIMIT_MAIN  = 20;  // лимит карточек для /vrachi (общей страницы)
 
 // ── Ротация специальностей ────────────────────────────────────
 
@@ -28,59 +28,21 @@ function saveIndex(i) {
 
 function parsePrice(text) {
   if (!text) return null;
-  // Убираем неразрывные пробелы, ищем первое число перед ₽
   const clean = text.replace(/ /g, ' ');
   const m = clean.match(/(\d[\d\s]*)\s*₽/);
   if (!m) return null;
   const n = parseInt(m[1].replace(/\s/g, ''), 10);
-  // Разумные границы: цена в рублях от 100 до 500 000
   return n >= 100 && n <= 500000 ? n : null;
 }
 
-// ── Сбор цен из карточек врачей ──────────────────────────────
-
-async function collectPrices(page) {
-  return page.evaluate(({ cardSel, limit }) => {
-    const cards = [...document.querySelectorAll(cardSel)].slice(0, limit);
-    return cards.map((card, idx) => {
-      // Сначала пробуем селекторы с "price" в имени класса
-      let priceEl = card.querySelector('[class*="price"]');
-      // Если нет — ищем любой листовой элемент с ₽ и цифрой
-      if (!priceEl || !/\d/.test(priceEl.textContent)) {
-        const all = [...card.querySelectorAll('*')];
-        priceEl = all.find(el =>
-          el.childElementCount === 0 &&
-          /₽/.test(el.textContent) &&
-          /\d/.test(el.textContent)
-        ) || null;
-      }
-      const priceText = priceEl ? priceEl.textContent.trim() : null;
-
-      // Имя врача: пробуем несколько вариантов
-      const nameEl =
-        card.querySelector('[class*="doctor-name"]') ||
-        card.querySelector('[class*="name"]') ||
-        card.querySelector('h2') ||
-        card.querySelector('h3') ||
-        card.querySelector('a[href*="/vrach/"]');
-      const rawName = nameEl ? nameEl.textContent.replace(/\s+/g, ' ').trim() : '';
-      const name    = rawName.slice(0, 60) || `Врач #${idx + 1}`;
-
-      return { pos: idx + 1, name, priceText };
-    });
-  }, { cardSel: '.doctor-info-container', limit: CARDS_LIMIT });
-}
-
-// ── Загрузить достаточно карточек (кликать «Показать ещё») ───
+// ── Загрузить все карточки (кликать «Показать ещё» пока видна) ──
 
 async function loadCards(page) {
   await page.waitForSelector('.doctor-info-container', { timeout: 12000 }).catch(() => {});
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const count = await page.locator('.doctor-info-container').count();
-    if (count >= CARDS_LIMIT) break;
+  for (let attempt = 0; attempt < 5; attempt++) {
     const moreBtn = page.locator('button.more-button').first();
     if (!await moreBtn.isVisible().catch(() => false)) break;
+    const count = await page.locator('.doctor-info-container').count();
     await moreBtn.scrollIntoViewIfNeeded();
     await moreBtn.click();
     await page.waitForFunction(
@@ -91,58 +53,121 @@ async function loadCards(page) {
   }
 }
 
-// ── Главная проверка: первый врач = минимальная цена ─────────
+// ── Сбор карточек только из секции специальности ─────────────
+// Страницы специальностей делятся на два блока:
+//   1) врачи выбранной специальности (нужны нам)
+//   2) «Другие врачи Ист Клиники» — идут ниже подзаголовка (исключаем)
+// На общей /vrachi подзаголовка нет → берём первые LIMIT_MAIN карточек.
 
-async function checkPriceSorting(page, url) {
+async function collectSpecialtyCards(page, isMainPage) {
+  return page.evaluate(({ cardSel, limitMain, isMain }) => {
+    // Ищем подзаголовок «Другие врачи» — он отделяет блок специальности от остальных
+    const separator = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,span,strong,div')]
+      .find(el => {
+        const t = el.textContent.trim();
+        return /Другие врачи/i.test(t) && t.length < 120;
+      });
+
+    const allCards = [...document.querySelectorAll(cardSel)];
+
+    let targetCards;
+    if (separator) {
+      // Берём только карточки, которые стоят ДО разделителя в DOM
+      // compareDocumentPosition возвращает DOCUMENT_POSITION_PRECEDING (4),
+      // когда аргумент (card) предшествует вызывающему узлу (separator)
+      targetCards = allCards.filter(card => (separator.compareDocumentPosition(card) & 4) !== 0);
+    } else {
+      // Общая страница /vrachi — берём первые LIMIT_MAIN карточек
+      targetCards = allCards.slice(0, limitMain);
+    }
+
+    return targetCards.map((card, idx) => {
+      // Цена
+      let priceEl = card.querySelector('[class*="price"]');
+      if (!priceEl || !/\d/.test(priceEl.textContent)) {
+        priceEl = [...card.querySelectorAll('*')].find(el =>
+          el.childElementCount === 0 && /₽/.test(el.textContent) && /\d/.test(el.textContent)
+        ) || null;
+      }
+      const priceText = priceEl ? priceEl.textContent.trim() : null;
+
+      // Название услуги (для лога)
+      const serviceEl = card.querySelector('[class*="service-name"], [class*="speciality"], [class*="specialty"]');
+      const service   = serviceEl ? serviceEl.textContent.trim().slice(0, 60) : null;
+
+      // Имя врача
+      const nameEl =
+        card.querySelector('[class*="doctor-name"]') ||
+        card.querySelector('[class*="name"]') ||
+        card.querySelector('h2') ||
+        card.querySelector('h3') ||
+        card.querySelector('a[href*="/vrach/"]');
+      const name = (nameEl ? nameEl.textContent.replace(/\s+/g, ' ').trim() : '').slice(0, 60)
+                   || `Врач #${idx + 1}`;
+
+      return { pos: idx + 1, name, priceText, service };
+    });
+  }, { cardSel: '.doctor-info-container', limitMain: LIMIT_MAIN, isMain: isMainPage });
+}
+
+// ── Проверка одной страницы, возвращает объект результата ─────
+
+async function checkOnePage(page, url) {
+  const shortUrl = url.replace(BASE_URL, '') || '/vrachi';
+  const isMain   = url === VRACHI_URL;
+
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
   const maintenance = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 2000 }).catch(() => false);
   const crashed     = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
-  if (maintenance || crashed) throw new Error(`Страница недоступна: ${url}`);
+  if (maintenance || crashed) {
+    console.log(`\n[price-sort] ${shortUrl} — ⚠ страница недоступна`);
+    return { ok: false, unavailable: true, shortUrl };
+  }
 
   await loadCards(page);
 
-  const raw   = await collectPrices(page);
-  const cards = raw
-    .map(c => ({ ...c, price: parsePrice(c.priceText) }))
-    .filter(c => c.price !== null);
+  const raw   = await collectSpecialtyCards(page, isMain);
+  const cards = raw.map(c => ({ ...c, price: parsePrice(c.priceText) })).filter(c => c.price !== null);
 
-  const shortUrl = url.replace(BASE_URL, '');
   console.log(`\n[price-sort] ${shortUrl}`);
-  console.log(`  Карточек всего: ${raw.length}, с ценой: ${cards.length}`);
-  cards.slice(0, 5).forEach(c => console.log(`  #${c.pos} ${c.name} — ${c.price} ₽`));
+  console.log(`  Карточек специальности: ${raw.length}, с ценой: ${cards.length}`);
+  cards.forEach(c => console.log(`  [${c.pos}] ${c.name} — ${c.price} ₽${c.service ? ` (${c.service})` : ''}`));
 
   if (cards.length < 2) {
-    console.log('  ⚠ Недостаточно карточек с ценой — пропуск проверки');
-    return;
+    console.log('  ⚠ Недостаточно карточек с ценой — пропуск');
+    return { ok: true, skipped: true, shortUrl };
   }
 
   const firstPrice = cards[0].price;
   const minPrice   = Math.min(...cards.map(c => c.price));
 
-  if (firstPrice !== minPrice) {
-    const cheaper = cards.find(c => c.price === minPrice);
-    throw new Error(
-      `Нарушена сортировка по цене на странице ${shortUrl}\n` +
-      `Первый врач:  "${cards[0].name}" — ${firstPrice} ₽\n` +
-      `Более дешёвый (позиция ${cheaper.pos}): "${cheaper.name}" — ${minPrice} ₽`
-    );
+  if (firstPrice === minPrice) {
+    console.log(`  ✓ OK: первый врач (${firstPrice} ₽) самый дешёвый`);
+    return { ok: true, shortUrl };
   }
 
-  console.log(`  ✓ OK — первый врач (${firstPrice} ₽) самый дешёвый`);
+  // Нарушители — все карточки от начала до первого врача с минимальной ценой
+  const cheapestIdx = cards.findIndex(c => c.price === minPrice);
+  const violators   = cards.slice(0, cheapestIdx);
+  const cheapest    = cards[cheapestIdx];
+
+  console.log(`  ✗ ОШИБКА: первый врач (${firstPrice} ₽), мин. цена ${minPrice} ₽`);
+  violators.forEach(c => console.log(`    ✗ [${c.pos}] ${c.name} — ${c.price} ₽`));
+  console.log(`    ✓ [${cheapest.pos}] ${cheapest.name} — ${minPrice} ₽  ← должен быть первым`);
+
+  return { ok: false, shortUrl, violators, cheapest, firstPrice, minPrice };
 }
 
-// ── Тесты ────────────────────────────────────────────────────
+// ── Тест ─────────────────────────────────────────────────────
 
-const specialtyUrls = []; // заполняется в beforeAll единожды
+const specialtyUrls = [];
 
 test.describe('Сортировка врачей по цене', () => {
-  // retries: 0 внутри describe — переопределяет глобальный retries:1.
-  // Без этого при падении теста beforeAll перезапускается с новым батчем.
   test.describe.configure({ retries: 0 });
 
   test.beforeAll(async ({ browser }) => {
-    if (specialtyUrls.length > 0) return; // уже инициализированы — пропускаем
+    if (specialtyUrls.length > 0) return;
     const ctx  = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await ctx.newPage();
     try {
@@ -155,7 +180,6 @@ test.describe('Сортировка врачей по цене', () => {
           .filter(href => {
             try {
               const u = new URL(href);
-              // /vrachi/что-то — не /vrachi сам по себе
               return u.pathname.startsWith('/vrachi/') && u.pathname.length > '/vrachi/'.length;
             } catch { return false; }
           })
@@ -187,18 +211,32 @@ test.describe('Сортировка врачей по цене', () => {
     }
   });
 
-  test('Сортировка по цене — /vrachi (общая)', async ({ page }) => {
-    await checkPriceSorting(page, VRACHI_URL);
-  });
+  test('Сортировка врачей по цене — /vrachi + 9 специальностей', async ({ page }) => {
+    const urls    = [VRACHI_URL, ...specialtyUrls];
+    const failed  = [];
 
-  for (let i = 0; i < BATCH_SIZE; i++) {
-    test(`Сортировка по цене — специальность ${i + 1} из ${BATCH_SIZE}`, async ({ page }) => {
-      const url = specialtyUrls[i];
-      if (!url) {
-        test.skip(true, 'URL специальности не определён (страниц меньше 9)');
-        return;
+    for (const url of urls) {
+      const result = await checkOnePage(page, url);
+      if (!result.ok && !result.unavailable && !result.skipped) {
+        failed.push(result);
       }
-      await checkPriceSorting(page, url);
+    }
+
+    if (failed.length === 0) return;
+
+    // Формируем подробный отчёт о нарушениях
+    const report = failed.map(f => {
+      const lines = [
+        `\n${f.shortUrl} (мин. цена ${f.minPrice} ₽, нарушители):`,
+        ...f.violators.map(c => `  • [позиция ${c.pos}] ${c.name} — ${c.price} ₽`),
+        `  ← должен стоять первым: [позиция ${f.cheapest.pos}] ${f.cheapest.name} — ${f.minPrice} ₽`,
+      ];
+      return lines.join('\n');
     });
-  }
+
+    throw new Error(
+      `Нарушена сортировка по цене на ${failed.length} стр. из ${urls.length}:` +
+      report.join('\n')
+    );
+  });
 });
