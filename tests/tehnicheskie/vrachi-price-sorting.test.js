@@ -54,34 +54,37 @@ async function loadCards(page) {
 }
 
 // ── Сбор карточек только из секции специальности ─────────────
-// Страницы специальностей делятся на два блока:
-//   1) врачи выбранной специальности (нужны нам)
-//   2) «Другие врачи Ист Клиники» — идут ниже подзаголовка (исключаем)
-// На общей /vrachi подзаголовка нет → берём первые LIMIT_MAIN карточек.
+// На странице специальности (напр. /vrachi/androlog):
+//   - первые карточки = специалисты, у каждого услуга «Консультация андролога»
+//   - ниже заголовок «Другие врачи Ист Клиники» — там уже другие услуги
+// Фильтруем по услуге из первой карточки — берём только карточки
+// с точно таким же названием услуги.
+// На общей /vrachi фильтр не нужен — берём первые LIMIT_MAIN карточек.
 
 async function collectSpecialtyCards(page, isMainPage) {
   return page.evaluate(({ cardSel, limitMain, isMain }) => {
-    // Ищем подзаголовок «Другие врачи» — он отделяет блок специальности от остальных
-    const separator = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,span,strong,div')]
-      .find(el => {
-        const t = el.textContent.trim();
-        return /Другие врачи/i.test(t) && t.length < 120;
-      });
-
     const allCards = [...document.querySelectorAll(cardSel)];
+    if (allCards.length === 0) return [];
 
-    let targetCards;
-    if (separator) {
-      // Берём только карточки, которые стоят ДО разделителя в DOM
-      // compareDocumentPosition возвращает DOCUMENT_POSITION_PRECEDING (4),
-      // когда аргумент (card) предшествует вызывающему узлу (separator)
-      targetCards = allCards.filter(card => (separator.compareDocumentPosition(card) & 4) !== 0);
-    } else {
-      // Общая страница /vrachi — берём первые LIMIT_MAIN карточек
-      targetCards = allCards.slice(0, limitMain);
+    // Ищем название услуги в карточке — кратчайший элемент, в чьём тексте есть «Консультация».
+    // Название услуги может быть в нелистовом элементе (напр. <a>Консультация андролога<span>₽</span></a>),
+    // поэтому перебираем все элементы и берём с наименьшей длиной текста.
+    function getService(card) {
+      const seen = new Set();
+      const candidates = [];
+      for (const el of card.querySelectorAll('*')) {
+        const t = el.textContent.replace(/\s+/g, ' ').trim();
+        if (/Консультация/i.test(t) && t.length > 10 && t.length < 80 && !seen.has(t)) {
+          seen.add(t);
+          candidates.push(t);
+        }
+      }
+      if (candidates.length === 0) return null;
+      candidates.sort((a, b) => a.length - b.length);
+      return candidates[0]; // кратчайшая строка = наиболее специфичное название услуги
     }
 
-    return targetCards.map((card, idx) => {
+    function extractCard(card, idx) {
       // Цена
       let priceEl = card.querySelector('[class*="price"]');
       if (!priceEl || !/\d/.test(priceEl.textContent)) {
@@ -90,10 +93,6 @@ async function collectSpecialtyCards(page, isMainPage) {
         ) || null;
       }
       const priceText = priceEl ? priceEl.textContent.trim() : null;
-
-      // Название услуги (для лога)
-      const serviceEl = card.querySelector('[class*="service-name"], [class*="speciality"], [class*="specialty"]');
-      const service   = serviceEl ? serviceEl.textContent.trim().slice(0, 60) : null;
 
       // Имя врача
       const nameEl =
@@ -105,8 +104,26 @@ async function collectSpecialtyCards(page, isMainPage) {
       const name = (nameEl ? nameEl.textContent.replace(/\s+/g, ' ').trim() : '').slice(0, 60)
                    || `Врач #${idx + 1}`;
 
-      return { pos: idx + 1, name, priceText, service };
-    });
+      return { pos: idx + 1, name, priceText, service: getService(card) };
+    }
+
+    if (isMain) {
+      // Общая /vrachi — берём первые limitMain карточек без фильтра по услуге
+      return allCards.slice(0, limitMain).map(extractCard);
+    }
+
+    // Страница специальности: определяем услугу по первой карточке
+    const firstService = getService(allCards[0]);
+    if (!firstService) {
+      // Название услуги не найдено — берём первые limitMain карточек
+      return allCards.slice(0, limitMain).map(extractCard);
+    }
+
+    // Берём только карточки с той же услугой, что у первой карточки
+    return allCards
+      .filter(card => getService(card) === firstService)
+      .map(extractCard);
+
   }, { cardSel: '.doctor-info-container', limitMain: LIMIT_MAIN, isMain: isMainPage });
 }
 
@@ -212,6 +229,7 @@ test.describe('Сортировка врачей по цене', () => {
   });
 
   test('Сортировка врачей по цене — /vrachi + 9 специальностей', async ({ page }) => {
+    test.setTimeout(300_000); // 10 страниц × ~30 сек каждая
     const urls    = [VRACHI_URL, ...specialtyUrls];
     const failed  = [];
 
