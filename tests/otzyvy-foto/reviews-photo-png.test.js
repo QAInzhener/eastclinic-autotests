@@ -25,8 +25,9 @@ async function openReviewModal(page) {
   await page.goto(REVIEWS_PAGE);
   await page.waitForLoadState('domcontentloaded');
   await acceptCookies(page);
-  const crashed = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
-  if (crashed) throw new Error('Приложение упало — страница показывает экран ошибки');
+  const crashed     = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+  const maintenance = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
+  if (crashed || maintenance) throw new Error('Приложение недоступно — страница показывает экран ошибки');
   const btn = page.locator('button.total-reviews-button');
   await btn.waitFor({ state: 'visible', timeout: 8000 });
   await btn.scrollIntoViewIfNeeded();

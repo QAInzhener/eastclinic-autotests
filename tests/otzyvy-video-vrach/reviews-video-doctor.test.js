@@ -30,8 +30,9 @@ async function openDoctorReviewForm(page) {
   await page.waitForLoadState('domcontentloaded');
   await acceptCookies(page);
 
-  const crachedVrachi = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
-  if (crachedVrachi) throw new Error('Приложение упало — страница /vrachi показывает экран ошибки');
+  const crachedVrachi    = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+  const maintenanceVrachi = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
+  if (crachedVrachi || maintenanceVrachi) throw new Error('Приложение недоступно — страница /vrachi показывает экран ошибки');
 
   const countBefore = await page.evaluate(() =>
     document.querySelectorAll('.doctor-info-container').length
@@ -56,8 +57,9 @@ async function openDoctorReviewForm(page) {
   const doctorName = (await page.locator('h1').first().textContent()).trim();
   console.log('[test] Врач:', doctorName);
 
-  const crashed = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
-  if (crashed) throw new Error('Приложение упало — страница врача показывает экран ошибки');
+  const crashed     = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+  const maintenance = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
+  if (crashed || maintenance) throw new Error('Приложение недоступно — страница врача показывает экран ошибки');
   const reviewBtn = page.locator('button.total-reviews-button');
   await reviewBtn.waitFor({ state: 'visible', timeout: 8000 });
   await reviewBtn.scrollIntoViewIfNeeded();
@@ -85,8 +87,9 @@ test('Форма отзыва с личной страницы врача — о
     await page.waitForLoadState('domcontentloaded');
     await acceptCookies(page);
 
-    const crachedVrachi = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
-    if (crachedVrachi) throw new Error('Приложение упало — страница /vrachi показывает экран ошибки');
+    const crachedVrachi    = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+    const maintenanceVrachi = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
+    if (crachedVrachi || maintenanceVrachi) throw new Error('Приложение недоступно — страница /vrachi показывает экран ошибки');
 
     // 2. Запоминаем количество карточек до «Показать еще»
     const countBefore = await page.evaluate(() =>
