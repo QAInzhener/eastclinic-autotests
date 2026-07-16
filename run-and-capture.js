@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
+import { join } from 'path';
 import http from 'http';
 
 const env = process.argv[2] || 'prod';
@@ -66,10 +67,19 @@ proc.on('close', code => {
       writeFileSync(resultsFile, JSON.stringify(fresh, null, 2));
     } else {
       const freshFiles = new Set(fresh.suites.map(s => s.file));
+      const testsDir = join(process.cwd(), 'tests');
       writeFileSync(resultsFile, JSON.stringify({
         ...existing,
         stats: fresh.stats,
-        suites: [...existing.suites.filter(s => !freshFiles.has(s.file)), ...fresh.suites],
+        suites: [
+          ...existing.suites.filter(s => {
+            if (freshFiles.has(s.file)) return false;
+            // Удаляем записи о тест-файлах, которых больше нет в репозитории
+            const fp = s.file ? join(testsDir, s.file) : '';
+            return fp && existsSync(fp);
+          }),
+          ...fresh.suites,
+        ],
       }, null, 2));
     }
   } catch (e) { console.error('merge error:', e.message); }
