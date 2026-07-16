@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VIDEO_PATH_VERTICAL = path.resolve(__dirname, 'shuvaeva-vertical.mov');
 
 const TEST_NAME     = 'Тест Тестов';
-const TEST_PHONE    = '4444444444';
+const TEST_PHONE    = '9' + String(Math.floor(Math.random() * 1e9)).padStart(9, '0');
 const REVIEWS_PAGE  = BASE_URL + '/otzyvy';
 const REVIEW_TEXT   = 'Проверка отправки отзыва с вертикальным видео — автотестирование';
 const REVIEW_SNIPPET = 'с вертикальным видео — автотестирование';

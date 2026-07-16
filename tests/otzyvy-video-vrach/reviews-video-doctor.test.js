@@ -10,7 +10,7 @@ const VIDEO_PATH_2M01 = path.resolve(__dirname, '../videos/ezhik-v-tumane-2m01s.
 const VIDEO_PATH_3M00 = path.resolve(__dirname, '../videos/ezhik-v-tumane-3m00s.mp4');
 
 const TEST_NAME    = 'Тест Тестов';
-const TEST_PHONE   = '4444444444';
+const TEST_PHONE   = '9' + String(Math.floor(Math.random() * 1e9)).padStart(9, '0');
 const VRACHI_PAGE  = BASE_URL + '/vrachi';
 const REVIEWS_PAGE = BASE_URL + '/otzyvy';
 const REVIEW_TEXT  = 'Проверка отправки отзыва с видео с личной страницы врача — автотестирование';

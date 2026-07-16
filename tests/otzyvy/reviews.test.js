@@ -3,7 +3,7 @@ import { checkReviewInAdmin, deleteReviewInAdmin, isReviewPublishedInAdmin } fro
 import { BASE_URL } from '../helpers/config.js';
 
 const TEST_NAME = 'Тест Тестов';
-const TEST_PHONE = '4444444444'; // +7 (444) 444-44-44
+const TEST_PHONE = '9' + String(Math.floor(Math.random() * 1e9)).padStart(9, '0');
 const REVIEWS_PAGE = BASE_URL + '/otzyvy';
 const REVIEW_TEXT = 'Проверка отправки отзыва с общей страницы отзывов – автотестирование';
 // Фрагмент уникальный для этого теста — используется для поиска строки в таблице
