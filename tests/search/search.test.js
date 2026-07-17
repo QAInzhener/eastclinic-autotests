@@ -92,6 +92,7 @@ test('Поле поиска: правая часть — выбор каждог
     // Ждём пока список клиник полностью загрузится (span.text-main с «Сокол» — первый пункт)
     await page.locator('span.text-main').filter({ hasText: 'Сокол' }).first()
       .waitFor({ state: 'visible', timeout: 15000 });
+    await page.waitForTimeout(300); // дать Vue завершить рендер всего списка
   }
 
   await gotoHomeAndOpenDropdown();
