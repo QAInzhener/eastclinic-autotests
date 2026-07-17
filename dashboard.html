@@ -886,7 +886,13 @@ function flatSpecs(suite) {
   var specs = [];
   if (suite.specs) specs = specs.concat(suite.specs);
   if (suite.suites) suite.suites.forEach(function(s) { specs = specs.concat(flatSpecs(s)); });
-  return specs;
+  // Playwright дублирует spec в suite.specs и suite.suites[].specs для test.describe — убираем дубли
+  var seen = new Set();
+  return specs.filter(function(sp) {
+    if (seen.has(sp.title)) return false;
+    seen.add(sp.title);
+    return true;
+  });
 }
 
 // ---- Render ----
