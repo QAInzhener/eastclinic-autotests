@@ -117,9 +117,8 @@ test('Форма "Написать отзыв" — отправка фото PNG
     await page.waitForTimeout(1000);
     await page.getByRole('link', { name: /акции/i }).first().click();
     await page.waitForURL('**/akczii**', { timeout: 15000 });
-    await page.waitForTimeout(1000);
     await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     let found = false;
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -129,7 +128,7 @@ test('Форма "Написать отзыв" — отправка фото PNG
         console.log(`[test] Отзыв не найден на /otzyvy, попытка ${attempt}/3, жду 5 с...`);
         await page.waitForTimeout(5000);
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(500);
       }
     }
     if (!found) throw new Error(`Отзыв с фото PNG не найден на странице ${REVIEWS_PAGE}`);

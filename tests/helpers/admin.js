@@ -5,22 +5,13 @@ const ADMIN_PASS = process.env.ADMIN_PASS;
 const ADMIN_URL = process.env.TEST_ADMIN_URL || 'https://eastclinic.ru/nimda-panel';
 
 async function goToReviews(page) {
-  // Если уже на странице отзывов (SAKAI восстанавливает маршрут) — не кликаем
-  // Даём до 8с — Vue Router может восстанавливать маршрут медленнее 2с
-  const alreadyHere = await page.waitForFunction(
+  // Сразу кликаем по вкладке — href различается в prod (#/reviews) и dev1
+  await page.locator('a').filter({ hasText: /Отзывы/ }).first().click({ timeout: 10000 });
+  await page.waitForFunction(
     () => [...document.querySelectorAll('th')].some(th => th.textContent.trim() === 'Отзыв'),
-    { timeout: 8000 }
-  ).then(() => true).catch(() => false);
-
-  if (!alreadyHere) {
-    // Ищем по тексту — href может различаться в prod (#/reviews) и dev1
-    await page.locator('a').filter({ hasText: /Отзывы/ }).first().click({ timeout: 10000 });
-    await page.waitForFunction(
-      () => [...document.querySelectorAll('th')].some(th => th.textContent.trim() === 'Отзыв'),
-      { timeout: 15000 }
-    );
-  }
-  await page.waitForTimeout(500);
+    { timeout: 15000 }
+  );
+  await page.waitForTimeout(300);
 }
 
 // Переключает фильтр таблицы на «Все» — иначе опубликованный отзыв пропадает из дефолтного вида.
@@ -36,22 +27,29 @@ async function showAllReviews(page) {
 async function loginToAdmin(page) {
   await page.goto(ADMIN_URL);
   await page.waitForLoadState('domcontentloaded');
-  // Vue SPA инициализируется медленно — даём время чтобы форма логина или панель появились
-  await page.waitForTimeout(4000);
+  // Ждём инициализации Vue SPA: либо форма логина, либо вкладка «Отзывы»
+  await page.waitForFunction(
+    () => !!document.querySelector('input[type="password"]') ||
+          [...document.querySelectorAll('a')].some(a => /Отзывы/.test(a.textContent)),
+    { timeout: 10000 }
+  ).catch(() => {});
 
   const passInput = page.locator('input[type="password"]');
   if (await passInput.isVisible()) {
     await page.locator('input[type="email"], input[type="text"]').first().fill(ADMIN_EMAIL);
     await passInput.fill(ADMIN_PASS);
     await page.getByRole('button', { name: /войти/i }).click();
-    await page.waitForTimeout(4000);  // Ждём завершения всех редиректов после логина
+    // Ждём появления вкладки «Отзывы» после редиректа SAKAI — сразу кликнем
+    await page.locator('a').filter({ hasText: /Отзывы/ }).first()
+      .waitFor({ state: 'visible', timeout: 15000 });
   }
 
-  // Если редирект увёл с панели (SAKAI иногда перебрасывает на главную) — возвращаемся
+  // Если редирект увёл с панели — возвращаемся и ждём навигацию
   if (!page.url().includes('nimda-panel')) {
     await page.goto(ADMIN_URL);
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(4000);
+    await page.locator('a').filter({ hasText: /Отзывы/ }).first()
+      .waitFor({ state: 'visible', timeout: 10000 });
   }
 
   await goToReviews(page);
@@ -79,7 +77,7 @@ async function findReviewRowIndex(page, searchSnippet, doctorName) {
     if (disabled) break;
 
     await nextBtn.click();
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(500);
   }
   return -1;
 }
@@ -96,7 +94,7 @@ export async function checkReviewInAdmin(page, searchSnippet, timeoutMs = 60000)
     if (found) return;
 
     if (Date.now() >= deadline) break;
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(2000);
     await goToReviews(page);
   }
 
@@ -121,7 +119,7 @@ export async function checkReviewInAdminWithDoctor(page, searchSnippet, doctorNa
     if (found) return;
 
     if (Date.now() >= deadline) break;
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(2000);
     await goToReviews(page);
   }
 
@@ -164,7 +162,7 @@ export async function publishReviewInAdmin(page, searchSnippet, doctorName = nul
     }, idx);
   }
 
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(800);
 }
 
 // Проверяет, включён ли тогл публикации у отзыва в таблице.

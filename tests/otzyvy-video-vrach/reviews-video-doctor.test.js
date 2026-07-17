@@ -184,9 +184,8 @@ test('Форма отзыва с личной страницы врача — о
     await page.waitForTimeout(1000);
     await page.getByRole('link', { name: /акции/i }).first().click();
     await page.waitForURL('**/akczii**', { timeout: 15000 });
-    await page.waitForTimeout(1000);
     await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     let textFoundOnDoctorPage = false;
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -199,7 +198,7 @@ test('Форма отзыва с личной страницы врача — о
         console.log(`[test] Отзыв не найден на странице врача, попытка ${attempt}/3, жду 5 с...`);
         await page.waitForTimeout(5000);
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(500);
       }
     }
     if (!textFoundOnDoctorPage) {
@@ -210,10 +209,10 @@ test('Форма отзыва с личной страницы врача — о
     // 15. Видео-карточка отображается в галерее на странице врача
     for (let y = 400; y <= 2000; y += 400) {
       await page.evaluate(pos => window.scrollTo(0, pos), y);
-      await page.waitForTimeout(250);
+      await page.waitForTimeout(100);
     }
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(300);
 
     const videoCard = page.locator('.media-item').first();
     await videoCard.waitFor({ state: 'visible', timeout: 10000 });
@@ -222,7 +221,7 @@ test('Форма отзыва с личной страницы врача — о
     // 16. Клик на карточку открывает видео-плеер
     await videoCard.scrollIntoViewIfNeeded();
     await videoCard.click();
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(800);
 
     const playerOpened = await page.waitForFunction(
       () => {
@@ -237,16 +236,15 @@ test('Форма отзыва с личной страницы врача — о
     expect(playerOpened, 'Плеер должен открыться при клике на иконку видео').toBe(true);
     console.log('[test] ✓ Плеер открывается при клике на иконку видео');
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(300);
 
     // 17. Проверяем отзыв на общей странице /otzyvy (до 3 попыток)
     await page.goto(REVIEWS_PAGE, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForTimeout(1000);
     await page.getByRole('link', { name: /акции/i }).first().click();
     await page.waitForURL('**/akczii**', { timeout: 15000 });
-    await page.waitForTimeout(1000);
     await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     let textFoundOnReviewsPage = false;
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -259,7 +257,7 @@ test('Форма отзыва с личной страницы врача — о
         console.log(`[test] Отзыв не найден на /otzyvy, попытка ${attempt}/3, жду 5 с...`);
         await page.waitForTimeout(5000);
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(500);
       }
     }
     if (!textFoundOnReviewsPage) {

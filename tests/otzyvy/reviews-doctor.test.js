@@ -74,7 +74,6 @@ async function checkOnDoctorPage(page, doctorHref) {
   await page.waitForTimeout(1000);
   await page.getByRole('link', { name: /акции/i }).first().click();
   await page.waitForURL('**/akczii**', { timeout: 15000 });
-  await page.waitForTimeout(1000);
   await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(1000);
   console.log('[test] Вернулся на страницу врача через кнопку «Назад»');
@@ -97,9 +96,8 @@ async function checkOnReviewsPage(page) {
   await page.waitForTimeout(1000);
   await page.getByRole('link', { name: /акции/i }).first().click();
   await page.waitForURL('**/akczii**', { timeout: 15000 });
-  await page.waitForTimeout(1000);
   await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1000);
   console.log('[test] Вернулся на /otzyvy через кнопку «Назад»');
 
   await page.getByText('Новые').first().scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});

@@ -163,7 +163,7 @@ async function publishAndVerify(page) {
   } else {
     await row.locator('button').first().click({ force: true });
   }
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(800);
   console.log('[admin] ✓ Кнопка публикации нажата');
 
   // Проверяем, что отзыв виден как ПЕРВЫЙ в списке текстовых отзывов на /otzyvy.
@@ -176,10 +176,9 @@ async function publishAndVerify(page) {
   // Кликаем «Акции» в шапке сайта — переходим на /akczii без прямого goto
   await page.getByRole('link', { name: /акции/i }).first().click();
   await page.waitForURL('**/akczii**', { timeout: 15000 });
-  await page.waitForTimeout(1000);
   // Возвращаемся назад через кнопку браузера
   await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1000);
   console.log('[test] Вернулся на /otzyvy через кнопку «Назад»');
 
   // Прокручиваем к фильтрам «Новые» / «Со всех площадок» — они идут сразу над списком отзывов
