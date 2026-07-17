@@ -1028,7 +1028,14 @@ function renderSuites(data) {
 
   groupOrder.forEach(function(key) {
     var group = groupMap[key];
-    var groupSuites = group.suites;
+    // Дедупликация: если в JSON попали два entry с одинаковым file — оставляем последний
+    var seenFiles = new Set();
+    var groupSuites = group.suites.slice().reverse().filter(function(s) {
+      var fp = (s.file || s.title || '').replace(/\\/g, '/');
+      if (seenFiles.has(fp)) return false;
+      seenFiles.add(fp);
+      return true;
+    }).reverse();
 
     if (!group.folder || groupSuites.length === 1) {
       // Один файл или файл верхнего уровня — стандартный блок

@@ -15,6 +15,7 @@ for (const env of ['prod', 'dev']) {
 
   const before = data.suites.length;
   const removed = [];
+  // Удаляем записи о файлах, которых нет на диске
   data.suites = data.suites.filter(s => {
     if (!s.file) return true;
     const fp = join(testsDir, s.file);
@@ -22,11 +23,27 @@ for (const env of ['prod', 'dev']) {
     return true;
   });
 
-  if (removed.length) {
+  // Дедупликация: если одно и то же file встречается дважды — оставляем последнее
+  const seenFiles = new Set();
+  const dupRemoved = [];
+  data.suites = data.suites.slice().reverse().filter(s => {
+    const k = s.file || s.title || '';
+    if (seenFiles.has(k)) { dupRemoved.push(k); return false; }
+    seenFiles.add(k);
+    return true;
+  }).reverse();
+
+  if (removed.length || dupRemoved.length) {
     writeFileSync(p, JSON.stringify(data, null, 2));
-    console.log(`${p}: удалено ${removed.length} записей:`);
-    removed.forEach(f => console.log(`  - ${f}`));
+    if (removed.length) {
+      console.log(`${p}: удалено ${removed.length} несуществующих записей:`);
+      removed.forEach(f => console.log(`  - ${f}`));
+    }
+    if (dupRemoved.length) {
+      console.log(`${p}: удалено ${dupRemoved.length} дублирующих записей:`);
+      dupRemoved.forEach(f => console.log(`  - ${f}`));
+    }
   } else {
-    console.log(`${p}: нечего удалять (все файлы на месте)`);
+    console.log(`${p}: нечего удалять (все файлы на месте, дублей нет)`);
   }
 }

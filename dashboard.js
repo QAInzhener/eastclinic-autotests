@@ -167,6 +167,15 @@ function mergeResults(existing, fresh, file, grep) {
     ];
   }
 
+  // Дедупликация: если по какой-то причине оказалось два entry с одинаковым file — оставляем последний
+  const seenFiles = new Set();
+  mergedSuites = mergedSuites.slice().reverse().filter(s => {
+    const k = s.file || s.title || '';
+    if (seenFiles.has(k)) return false;
+    seenFiles.add(k);
+    return true;
+  }).reverse();
+
   return {
     ...existing,
     suites: mergedSuites,

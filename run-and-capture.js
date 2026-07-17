@@ -68,18 +68,27 @@ proc.on('close', code => {
     } else {
       const freshFiles = new Set(fresh.suites.map(s => s.file));
       const testsDir = join(process.cwd(), 'tests');
+      const rawSuites = [
+        ...existing.suites.filter(s => {
+          if (freshFiles.has(s.file)) return false;
+          // Удаляем записи о тест-файлах, которых больше нет в репозитории
+          const fp = s.file ? join(testsDir, s.file) : '';
+          return fp && existsSync(fp);
+        }),
+        ...fresh.suites,
+      ];
+      // Дедупликация: оставляем последнюю запись на каждый file
+      const seenFiles2 = new Set();
+      const dedupedSuites = rawSuites.slice().reverse().filter(s => {
+        const k = s.file || s.title || '';
+        if (seenFiles2.has(k)) return false;
+        seenFiles2.add(k);
+        return true;
+      }).reverse();
       writeFileSync(resultsFile, JSON.stringify({
         ...existing,
         stats: fresh.stats,
-        suites: [
-          ...existing.suites.filter(s => {
-            if (freshFiles.has(s.file)) return false;
-            // Удаляем записи о тест-файлах, которых больше нет в репозитории
-            const fp = s.file ? join(testsDir, s.file) : '';
-            return fp && existsSync(fp);
-          }),
-          ...fresh.suites,
-        ],
+        suites: dedupedSuites,
       }, null, 2));
     }
   } catch (e) { console.error('merge error:', e.message); }
