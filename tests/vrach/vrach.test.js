@@ -8,9 +8,15 @@ async function gotoDoctor25(page) {
   let count = await page.evaluate(() => document.querySelectorAll('.doctor-info-container').length);
   while (count < 25) {
     const btn = page.locator('button.more-button').first();
+    if (!await btn.isVisible({ timeout: 5000 }).catch(() => false)) break;
     await btn.scrollIntoViewIfNeeded();
     await btn.click();
-    await page.waitForTimeout(3000);
+    // Ждём, пока в DOM появятся новые карточки (не фиксированный таймаут)
+    await page.waitForFunction(
+      (prev) => document.querySelectorAll('.doctor-info-container').length > prev,
+      count,
+      { timeout: 10000 }
+    ).catch(() => {});
     const newCount = await page.evaluate(() => document.querySelectorAll('.doctor-info-container').length);
     if (newCount === count) break;
     count = newCount;
