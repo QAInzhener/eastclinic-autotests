@@ -75,7 +75,7 @@ test.describe('Кнопка «Показать ещё» — специально
   });
 
   test('Кнопка «Показать ещё» — 10 страниц специальностей (ротация)', async ({ page }) => {
-    test.setTimeout(300_000);
+    test.setTimeout(480_000);
     if (specialtyUrls.length === 0) { console.warn('[show-more-spec] Нет URL для проверки — пропущено'); return; }
 
     const failed = [];

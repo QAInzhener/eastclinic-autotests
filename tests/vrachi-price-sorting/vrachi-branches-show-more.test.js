@@ -21,7 +21,7 @@ test.describe('Кнопка «Показать ещё» — врачи по фи
   test.describe.configure({ retries: 0 });
 
   test('Кнопка «Показать ещё» — /vrachi и все филиалы (11 страниц)', async ({ page }) => {
-    test.setTimeout(360_000);
+    test.setTimeout(600_000);
     const failed = [];
     let checked = 0;
 

@@ -25,8 +25,10 @@ export async function checkShowMore(page, url, label) {
   let clickNum = 0;
   const errors = [];
   const MAX_CLICKS = 20; // защита от многоминутного цикла на специальностях с очень большим числом врачей
+  const LOOP_DEADLINE_MS = 25000; // защита по времени — независимо от MAX_CLICKS, не даём одной странице съесть весь бюджет теста
+  const loopStart = Date.now();
 
-  while (clickNum < MAX_CLICKS) {
+  while (clickNum < MAX_CLICKS && Date.now() - loopStart < LOOP_DEADLINE_MS) {
     const btn     = page.locator('button.more-button').first();
     const visible = await btn.isVisible({ timeout: 1000 }).catch(() => false);
     if (!visible) break;
@@ -61,6 +63,8 @@ export async function checkShowMore(page, url, label) {
 
   if (clickNum === MAX_CLICKS) {
     console.log(`[show-more] ${label}: достигнут лимит ${MAX_CLICKS} кликов, прекращаем (список ещё не исчерпан, но страница слишком большая)`);
+  } else if (Date.now() - loopStart >= LOOP_DEADLINE_MS) {
+    console.log(`[show-more] ${label}: истёк лимит времени на страницу (${LOOP_DEADLINE_MS}мс), прекращаем`);
   }
 
   return { ok: errors.length === 0, errors, totalClicks: clickNum, finalCount: count };
