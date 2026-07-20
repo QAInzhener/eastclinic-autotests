@@ -24,15 +24,18 @@ export async function checkShowMore(page, url, label) {
 
   let clickNum = 0;
   const errors = [];
+  const MAX_CLICKS = 20; // защита от многоминутного цикла на специальностях с очень большим числом врачей
 
-  while (true) {
+  while (clickNum < MAX_CLICKS) {
     const btn     = page.locator('button.more-button').first();
     const visible = await btn.isVisible({ timeout: 1000 }).catch(() => false);
     if (!visible) break;
+    const enabled = await btn.isEnabled({ timeout: 1000 }).catch(() => false);
+    if (!enabled) break;
 
     const prev = count;
-    await btn.scrollIntoViewIfNeeded();
-    await btn.click();
+    await btn.scrollIntoViewIfNeeded({ timeout: 15000 });
+    await btn.click({ timeout: 15000 });
     clickNum++;
 
     // Ждём, пока в DOM появятся новые карточки (до 10 с)
@@ -54,6 +57,10 @@ export async function checkShowMore(page, url, label) {
     }
 
     console.log(`[show-more] ${label}: клик ${clickNum} → +${added} (итого ${count})`);
+  }
+
+  if (clickNum === MAX_CLICKS) {
+    console.log(`[show-more] ${label}: достигнут лимит ${MAX_CLICKS} кликов, прекращаем (список ещё не исчерпан, но страница слишком большая)`);
   }
 
   return { ok: errors.length === 0, errors, totalClicks: clickNum, finalCount: count };
