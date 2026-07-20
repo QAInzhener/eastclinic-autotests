@@ -536,7 +536,7 @@ const server = http.createServer(async (req, res) => {
     if (rel === '' || rel.endsWith('/')) rel += 'index.html';
     const filePath = normalize(join(REPORT_DIR, rel));
     if (!filePath.startsWith(REPORT_DIR) || !existsSync(filePath)) {
-      res.writeHead(404);
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('Отчёт не найден. Запустите хотя бы один прогон тестов.');
     }
     const mime = REPORT_MIME[extname(filePath).toLowerCase()] || 'application/octet-stream';
@@ -604,12 +604,12 @@ const server = http.createServer(async (req, res) => {
     const rel = decodeURIComponent(url.pathname.slice('/traces/'.length));
     const filePath = normalize(join(TEST_RESULTS_DIR, rel));
     if (!filePath.startsWith(TEST_RESULTS_DIR) || !existsSync(filePath)) {
-      res.writeHead(404);
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('Трейс не найден');
     }
     let data;
     try { data = readFileSync(filePath); } catch {
-      res.writeHead(500);
+      res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('Ошибка чтения файла трейса');
     }
     res.writeHead(200, {
