@@ -85,6 +85,21 @@ async function collectSpecialtyCards(page, isMainPage) {
       return candidates[0]; // кратчайшая строка = наиболее специфичное название услуги
     }
 
+    // Ближайший рабочий день берём из календарной ленты — она не внутри самой карточки
+    // .doctor-info-container, а лежит рядом с ней в общей обёртке .doctor-item-container
+    // (.doctor-item-container > ... > .doctor-info-container + .doctor-calendar-container).
+    // Дни в ленте идут подряд от сегодняшнего — поэтому позиция активного дня (класс
+    // active-day) в списке .calendar-day-container — это и есть «дней до записи»,
+    // сравнимое между разными карточками без разбора русских названий месяцев.
+    function getNearestDayIndex(card) {
+      const wrapper = card.closest('.doctor-item-container');
+      if (!wrapper) return null;
+      const days = [...wrapper.querySelectorAll('.calendar-day-container')];
+      if (days.length === 0) return null;
+      const activeIdx = days.findIndex(d => d.classList.contains('active-day'));
+      return activeIdx >= 0 ? activeIdx : null;
+    }
+
     function extractCard(card, idx) {
       // Цена
       let priceEl = card.querySelector('[class*="price"]');
@@ -105,7 +120,7 @@ async function collectSpecialtyCards(page, isMainPage) {
       const name = (nameEl ? nameEl.textContent.replace(/\s+/g, ' ').trim() : '').slice(0, 60)
                    || `Врач #${idx + 1}`;
 
-      return { pos: idx + 1, name, priceText, service: getService(card) };
+      return { pos: idx + 1, name, priceText, service: getService(card), nearestDayIndex: getNearestDayIndex(card) };
     }
 
     if (isMain) {
@@ -150,31 +165,61 @@ async function checkOnePage(page, url) {
 
   console.log(`\n[price-sort] ${shortUrl}`);
   console.log(`  Карточек специальности: ${raw.length}, с ценой: ${cards.length}`);
-  cards.forEach(c => console.log(`  [${c.pos}] ${c.name} — ${c.price} ₽${c.service ? ` (${c.service})` : ''}`));
+  cards.forEach(c => console.log(
+    `  [${c.pos}] ${c.name} — ${c.price} ₽` +
+    (c.nearestDayIndex !== null ? `, ближайший день: +${c.nearestDayIndex}` : ', ближайший день: неизвестен') +
+    (c.service ? ` (${c.service})` : '')
+  ));
 
   if (cards.length < 2) {
     console.log('  ⚠ Недостаточно карточек с ценой — пропуск');
     return { ok: true, skipped: true, shortUrl };
   }
 
-  const firstPrice = cards[0].price;
-  const minPrice   = Math.min(...cards.map(c => c.price));
+  // Ключ сортировки: сначала цена, при равной цене — чей день записи ближе
+  // (меньше индекс в календарной ленте). Врача без известного дня (нет слотов
+  // /не нашли календарь) при равной цене считаем «дальше всех» — не выигрывает тай-брейк.
+  const dayKey = (c) => c.nearestDayIndex === null ? Infinity : c.nearestDayIndex;
+  const compare = (a, b) => a.price !== b.price ? a.price - b.price : dayKey(a) - dayKey(b);
 
-  if (firstPrice === minPrice) {
-    console.log(`  ✓ OK: первый врач (${firstPrice} ₽) самый дешёвый`);
+  let bestIdx = 0;
+  for (let i = 1; i < cards.length; i++) {
+    if (compare(cards[i], cards[bestIdx]) < 0) bestIdx = i;
+  }
+  const best = cards[bestIdx];
+
+  // Нарушители первой позиции — все карточки перед лучшей по цене (и дню при равной цене)
+  const violators = bestIdx > 0 ? cards.slice(0, bestIdx) : [];
+
+  // Отдельно ищем инверсии при РАВНОЙ цене по всему списку: врач с более далёким днём
+  // стоит раньше врача с более близким днём той же цены.
+  const dayViolations = [];
+  for (let i = 0; i < cards.length; i++) {
+    for (let j = i + 1; j < cards.length; j++) {
+      if (cards[i].price === cards[j].price &&
+          cards[i].nearestDayIndex !== null && cards[j].nearestDayIndex !== null &&
+          cards[i].nearestDayIndex > cards[j].nearestDayIndex) {
+        dayViolations.push({ earlier: cards[i], later: cards[j] });
+      }
+    }
+  }
+
+  if (violators.length === 0 && dayViolations.length === 0) {
+    console.log(`  ✓ OK: первый врач (${cards[0].price} ₽) — лучший по цене/дню`);
     return { ok: true, shortUrl };
   }
 
-  // Нарушители — все карточки от начала до первого врача с минимальной ценой
-  const cheapestIdx = cards.findIndex(c => c.price === minPrice);
-  const violators   = cards.slice(0, cheapestIdx);
-  const cheapest    = cards[cheapestIdx];
+  console.log(`  ✗ ОШИБКА на ${shortUrl}`);
+  violators.forEach(c => console.log(`    ✗ [${c.pos}] ${c.name} — ${c.price} ₽ (день +${dayKey(c)})`));
+  if (violators.length) {
+    console.log(`    ✓ [${best.pos}] ${best.name} — ${best.price} ₽ (день +${dayKey(best)})  ← должен быть первым`);
+  }
+  dayViolations.forEach(({ earlier, later }) => console.log(
+    `    ✗ при цене ${earlier.price} ₽: [${earlier.pos}] ${earlier.name} (день +${earlier.nearestDayIndex}) ` +
+    `стоит раньше [${later.pos}] ${later.name} (день +${later.nearestDayIndex}), хотя должен быть после`
+  ));
 
-  console.log(`  ✗ ОШИБКА: первый врач (${firstPrice} ₽), мин. цена ${minPrice} ₽`);
-  violators.forEach(c => console.log(`    ✗ [${c.pos}] ${c.name} — ${c.price} ₽`));
-  console.log(`    ✓ [${cheapest.pos}] ${cheapest.name} — ${minPrice} ₽  ← должен быть первым`);
-
-  return { ok: false, shortUrl, violators, cheapest, firstPrice, minPrice };
+  return { ok: false, shortUrl, violators, best, dayViolations };
 }
 
 // ── Тест ─────────────────────────────────────────────────────
@@ -245,11 +290,18 @@ test.describe('Сортировка врачей по цене', () => {
 
     // Формируем подробный отчёт о нарушениях
     const report = failed.map(f => {
-      const lines = [
-        `\n${f.shortUrl} (мин. цена ${f.minPrice} ₽, нарушители):`,
-        ...f.violators.map(c => `  • [позиция ${c.pos}] ${c.name} — ${c.price} ₽`),
-        `  ← должен стоять первым: [позиция ${f.cheapest.pos}] ${f.cheapest.name} — ${f.minPrice} ₽`,
-      ];
+      const lines = [`\n${f.shortUrl}:`];
+      if (f.violators.length) {
+        lines.push(
+          `  Нарушен порядок по цене (лучший вариант — ${f.best.price} ₽):`,
+          ...f.violators.map(c => `    • [позиция ${c.pos}] ${c.name} — ${c.price} ₽`),
+          `    ← должен стоять первым: [позиция ${f.best.pos}] ${f.best.name} — ${f.best.price} ₽`,
+        );
+      }
+      f.dayViolations.forEach(({ earlier, later }) => lines.push(
+        `  При цене ${earlier.price} ₽: [позиция ${earlier.pos}] ${earlier.name} (день +${earlier.nearestDayIndex}) ` +
+        `стоит раньше [позиция ${later.pos}] ${later.name} (день +${later.nearestDayIndex}), а должен быть после`
+      ));
       return lines.join('\n');
     });
 
