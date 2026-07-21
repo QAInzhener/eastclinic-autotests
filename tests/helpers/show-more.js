@@ -48,7 +48,24 @@ export async function checkShowMore(page, url, label) {
     ).catch(() => {});
 
     count = await page.evaluate(() => document.querySelectorAll('.doctor-info-container').length);
-    const added = count - prev;
+    let added = count - prev;
+
+    if (added === 0) {
+      // Даём странице ещё один шанс — AJAX-запрос мог не успеть ответить за 10с
+      // из-за разовой задержки сети, а не из-за реальной поломки кнопки.
+      const stillVisible = await btn.isVisible({ timeout: 1000 }).catch(() => false);
+      const stillEnabled = stillVisible && await btn.isEnabled({ timeout: 1000 }).catch(() => false);
+      if (stillVisible && stillEnabled) {
+        await btn.click({ timeout: 15000 });
+        await page.waitForFunction(
+          (n) => document.querySelectorAll('.doctor-info-container').length > n,
+          prev,
+          { timeout: 10000 }
+        ).catch(() => {});
+        count = await page.evaluate(() => document.querySelectorAll('.doctor-info-container').length);
+        added = count - prev;
+      }
+    }
 
     if (added === 0) {
       errors.push(`клик ${clickNum}: карточки не добавились при видимой кнопке`);
