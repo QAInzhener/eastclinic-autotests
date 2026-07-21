@@ -89,10 +89,10 @@ test('Поле поиска: правая часть — выбор каждог
     // Принять куки ДО открытия дропдауна — иначе закрывает его
     try { await page.getByRole('button', { name: /принять/i }).click({ timeout: 2000 }); } catch {}
     await page.locator('.clinic-search').first().click();
-    // Ждём пока список клиник полностью загрузится (span.text-main с «Сокол» — первый пункт)
-    await page.locator('span.text-main').filter({ hasText: 'Сокол' }).first()
+    // Ждём последний пункт списка («Калуга») — сигнал, что весь список из 10 клиник дорендерен,
+    // а не только начало (ожидание одного первого пункта давало гонку на поздних пунктах списка)
+    await page.locator('span.text-main').filter({ hasText: 'Калуга' }).first()
       .waitFor({ state: 'visible', timeout: 15000 });
-    await page.waitForTimeout(300); // дать Vue завершить рендер всего списка
   }
 
   await gotoHomeAndOpenDropdown();
