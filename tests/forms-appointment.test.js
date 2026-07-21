@@ -564,12 +564,14 @@ test('Запись на приём (смена времени) — время о
 
   await timeBlock.click();
   await page.waitForSelector('.calendar-slot:visible', { timeout: 10000 });
-  await page.locator('.v-card-container.last').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+  // Оверлей внутри модалки может перекрывать слоты — .v-card-container.last встречается
+  // на странице несколько раз (карточки в «Похожие врачи»), поэтому скоупим до .modal-overlay
+  await page.locator('.modal-overlay .v-card-container.last').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
 
   const slotsCount = await page.locator('.calendar-slot:visible').count();
   test.skip(slotsCount < 2, 'Только один слот — смена времени невозможна');
 
-  await page.locator('.calendar-slot:visible').nth(1).click();
+  await page.locator('.calendar-slot:visible').nth(1).click({ timeout: 15000 });
   await page.waitForTimeout(1000);
 
   const updatedTime = await timeBlock.innerText();
