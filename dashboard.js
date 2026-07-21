@@ -108,9 +108,25 @@ function walkSpecs(suite, cb) {
   if (suite.suites) suite.suites.forEach(s => walkSpecs(s, cb));
 }
 
+// Playwright дублирует spec в suite.specs и suite.suites[].specs для test.describe —
+// убираем дубли по title в пределах одного top-level suite (файла), как и flatSpecs
+// на клиенте в dashboard.html. Без этого шапка «всего/✓/✗» считает такие specs дважды,
+// а панели (уже дедуплицированные) показывают меньше — числа расходятся.
+function flatSpecsDedup(suite) {
+  const specs = [];
+  if (suite.specs) specs.push(...suite.specs);
+  if (suite.suites) suite.suites.forEach(s => specs.push(...flatSpecsDedup(s)));
+  const seen = new Set();
+  return specs.filter(sp => {
+    if (seen.has(sp.title)) return false;
+    seen.add(sp.title);
+    return true;
+  });
+}
+
 function recalcStats(suites, baseStats) {
   let expected = 0, unexpected = 0, skipped = 0;
-  suites.forEach(suite => walkSpecs(suite, spec => {
+  suites.forEach(suite => flatSpecsDedup(suite).forEach(spec => {
     const st = specStatus(spec);
     if (st === 'passed') expected++;
     else if (['failed', 'timedOut', 'interrupted'].includes(st)) unexpected++;
