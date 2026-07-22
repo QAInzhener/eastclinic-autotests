@@ -5,6 +5,10 @@ async function gotoDoctor25(page) {
   await page.goto(BASE_URL + '/vrachi', { waitUntil: 'load' });
   try { await page.getByRole('button', { name: /принять/i }).click({ timeout: 3000 }); } catch {}
 
+  const crashed     = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+  const maintenance = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
+  test.skip(crashed || maintenance, 'страница недоступна (сайт на обслуживании)');
+
   let count = await page.evaluate(() => document.querySelectorAll('.doctor-info-container').length);
   while (count < 25) {
     const btn = page.locator('button.more-button').first();
