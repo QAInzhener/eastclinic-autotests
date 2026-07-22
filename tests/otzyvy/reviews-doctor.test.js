@@ -115,11 +115,18 @@ async function checkOnReviewsPage(page) {
 // retries: 0 — отзыв нельзя отправлять дважды при повторном прогоне
 test.describe.configure({ retries: 0 });
 
-test('Форма отзыва с личной страницы врача — заполняется, отправляется, публикуется и удаляется', async ({ page }) => {
+test('Форма отзыва с личной страницы врача — заполняется, отправляется, публикуется и удаляется', async ({ page, context }) => {
   test.setTimeout(600000);
   let reviewSubmitted = false;
   let reviewPublished = false;
   let doctorName = null;
+
+  // Отдельная вкладка для работы в админ-панели: она делит куки/сессию логина с основной
+  // страницей (context общий), но у неё своя история навигации. Если бы админка работала
+  // в том же page, что и публичные проверки, «клик Акции → goBack()» в checkOnDoctorPage /
+  // checkOnReviewsPage мог бы случайно вернуть не на публичную страницу, а в засорённую
+  // навигациями внутри SPA-админки историю того же таба.
+  const adminPage = await context.newPage();
 
   try {
     // 1. Открываем список врачей
@@ -184,12 +191,12 @@ test('Форма отзыва с личной страницы врача — з
 
     // 10. Ждём появления отзыва в панели администратора
     // Отзывы с dev1 попадают в ту же базу что и prod — проверка и удаление нужны всегда.
-    await checkReviewInAdminWithDoctor(page, REVIEW_SNIPPET, doctorName);
+    await checkReviewInAdminWithDoctor(adminPage, REVIEW_SNIPPET, doctorName);
     console.log('[test] ✓ Отзыв найден в панели администратора');
 
-    // 11–13. Публикуем и проверяем на публичных страницах
+    // 11–13. Публикуем (в отдельной вкладке админки) и проверяем на публичных страницах
     reviewPublished = true;
-    await publishReview(page, doctorName);
+    await publishReview(adminPage, doctorName);
     await checkOnDoctorPage(page, doctorHref);
     await checkOnReviewsPage(page);
 
@@ -197,8 +204,8 @@ test('Форма отзыва с личной страницы врача — з
     if (reviewSubmitted) {
       try {
         if (reviewPublished) {
-          const actuallyPublished = await isReviewPublishedInAdmin(page, REVIEW_SNIPPET, doctorName);
-          await deleteReviewInAdmin(page, REVIEW_SNIPPET, doctorName);
+          const actuallyPublished = await isReviewPublishedInAdmin(adminPage, REVIEW_SNIPPET, doctorName);
+          await deleteReviewInAdmin(adminPage, REVIEW_SNIPPET, doctorName);
           if (actuallyPublished) {
             console.log('[test] ✓ Тестовый отзыв удалён');
           } else {
@@ -208,7 +215,7 @@ test('Форма отзыва с личной страницы врача — з
             );
           }
         } else {
-          await deleteReviewInAdmin(page, REVIEW_SNIPPET, doctorName);
+          await deleteReviewInAdmin(adminPage, REVIEW_SNIPPET, doctorName);
           console.warn(
             '\n⚠️  Удалён, до ПУБЛИКАЦИИ.\n' +
             '   Тест упал раньше шага публикации.\n'
@@ -223,5 +230,6 @@ test('Форма отзыва с личной страницы врача — з
         );
       }
     }
+    await adminPage.close();
   }
 });
