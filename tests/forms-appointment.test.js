@@ -250,8 +250,16 @@ async function changeToNextAvailableSlot(page) {
     return Math.round(r.top + r.height / 2);
   });
 
-  const chevronCoords = await page.evaluate((ay) => {
-    if (!ay) return null;
+  // Клики ниже раньше делались по «сырым» экранным координатам (page.mouse.click(x, y)),
+  // вычисленным один раз через evaluate(). У такого клика нет проверки, что он реально попал
+  // по кликабельному элементу: если окно браузера не в фокусе (например, при ночном прогоне
+  // через cron на сервере) или карусель ещё доанимировалась, клик молча промахивается —
+  // лента прокручивается, но нужный день не выбирается (это и увидели на записи ночного прогона).
+  // Вместо координат помечаем нужный DOM-узел атрибутом data-e2e-* и кликаем через
+  // Playwright-локатор — он сам ждёт, пока элемент станет видимым/стабильным/кликабельным.
+  const chevronMarked = await page.evaluate((ay) => {
+    if (!ay) return false;
+    document.querySelectorAll('[data-e2e-chevron]').forEach(el => el.removeAttribute('data-e2e-chevron'));
     const chevrons = [...document.querySelectorAll('[class*="chevron"]')].filter(el => {
       const cls = el.className?.toString() ?? '';
       if (!cls.includes('right')) return false;
@@ -259,27 +267,31 @@ async function changeToNextAvailableSlot(page) {
       if (r.width < 5 || r.height < 5) return false;
       return Math.abs((r.top + r.height / 2) - ay) < 80;
     });
-    if (!chevrons.length) return null;
+    if (!chevrons.length) return false;
     chevrons.sort((a, b) => {
       const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
       return Math.abs((ra.top + ra.height / 2) - ay) - Math.abs((rb.top + rb.height / 2) - ay);
     });
-    const r = chevrons[0].getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    chevrons[0].setAttribute('data-e2e-chevron', '1');
+    return true;
   }, pickerY);
 
-  test.skip(!chevronCoords, 'Не найден шеврон → в пикере времени — пропускаем');
-  await page.mouse.click(chevronCoords.x, chevronCoords.y);
-  await page.waitForTimeout(1000);
+  test.skip(!chevronMarked, 'Не найден шеврон → в пикере времени — пропускаем');
+  await page.locator('[data-e2e-chevron="1"]').click({ force: true, timeout: 5000 });
+  // Карусель анимирует переход к следующей неделе — ждём с запасом, раньше 1с иногда
+  // не хватало, и следующий клик по дню попадал по элементу ещё в процессе анимации.
+  await page.waitForTimeout(1500);
 
-  // Все доступные дни в текущем виде, отсортированы слева направо (ранние → поздние)
-  const allAvailableDays = await page.evaluate((ay) => {
+  // Все доступные дни в текущем виде, отсортированы слева направо (ранние → поздние),
+  // помечены data-e2e-day="0..N" для последующего клика через локатор.
+  const markAvailableDays = () => page.evaluate((ay) => {
+    document.querySelectorAll('[data-e2e-day]').forEach(el => el.removeAttribute('data-e2e-day'));
     const visibleSlide = [...document.querySelectorAll('.carousel__slide--visible')].find(el => {
       const r = el.getBoundingClientRect();
       return Math.abs((r.top + r.height / 2) - ay) < 100;
     });
     const searchRoot = visibleSlide || document;
-    return [...searchRoot.querySelectorAll('.calendar-day-container')].map(el => {
+    const days = [...searchRoot.querySelectorAll('.calendar-day-container')].map(el => {
       const r = el.getBoundingClientRect();
       if (r.width < 5 || r.height < 5) return null;
       const cy = r.top + r.height / 2;
@@ -291,24 +303,32 @@ async function changeToNextAvailableSlot(page) {
       if (!m) return null;
       const brightness = parseInt(m[1]) + parseInt(m[2]) + parseInt(m[3]);
       if (brightness >= 200) return null;
-      return { x: r.left + r.width / 2, y: cy };
+      return { el, x: r.left + r.width / 2 };
     }).filter(Boolean).sort((a, b) => a.x - b.x);
+    days.forEach((d, i) => d.el.setAttribute('data-e2e-day', String(i)));
+    return days.length;
   }, pickerY);
 
-  test.skip(!allAvailableDays.length, 'Нет доступных дней после → в пикере — пропускаем');
+  let dayCount = await markAvailableDays();
+  test.skip(dayCount === 0, 'Нет доступных дней после → в пикере — пропускаем');
 
-  // Ищем первый день с >= 3 слотами; если таких нет — остаёмся на последнем доступном дне
+  // Ищем первый день с >= 3 слотами; если таких нет — остаёмся на последнем доступном дне.
+  // Перед каждым кликом помечаем дни заново — Vue может перерисовать DOM после предыдущего
+  // клика и «потерять» расставленные ранее data-атрибуты у ещё не кликнутых дней.
   let currentSlots = [];
-  for (let i = 0; i < allAvailableDays.length; i++) {
-    await page.mouse.click(allAvailableDays[i].x, allAvailableDays[i].y);
+  for (let i = 0; i < dayCount; i++) {
+    dayCount = await markAvailableDays();
+    if (i >= dayCount) break;
+    await page.locator(`[data-e2e-day="${i}"]`).click({ force: true, timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(1500);
     currentSlots = await getTopSlots();
-    if (currentSlots.length >= 3 || i === allAvailableDays.length - 1) break;
+    if (currentSlots.length >= 3 || i === dayCount - 1) break;
   }
 
   test.skip(currentSlots.length < 1, 'Нет слотов для смены времени — пропускаем');
 
-  const lastSlotCoords = await page.evaluate(() => {
+  const slotMarked = await page.evaluate(() => {
+    document.querySelectorAll('[data-e2e-slot]').forEach(el => el.removeAttribute('data-e2e-slot'));
     const slots = [...document.querySelectorAll('.calendar-slot')].filter(el => {
       const r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) return false;
@@ -316,12 +336,12 @@ async function changeToNextAvailableSlot(page) {
       const top = document.elementFromPoint(cx, cy);
       return top && (top === el || el.contains(top) || top.closest?.('.calendar-slot') === el);
     });
-    if (!slots.length) return null;
-    const r = slots[slots.length - 1].getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    if (!slots.length) return false;
+    slots[slots.length - 1].setAttribute('data-e2e-slot', '1');
+    return true;
   });
-  if (lastSlotCoords) {
-    await page.mouse.click(lastSlotCoords.x, lastSlotCoords.y);
+  if (slotMarked) {
+    await page.locator('[data-e2e-slot="1"]').click({ force: true, timeout: 5000 });
   } else {
     await page.locator('.modal-overlay .calendar-slot:visible').last().click({ force: true });
   }
