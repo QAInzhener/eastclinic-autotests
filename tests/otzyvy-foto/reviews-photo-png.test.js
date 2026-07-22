@@ -38,11 +38,17 @@ async function openReviewModal(page) {
 // retries: 0 — отзыв нельзя отправлять дважды при повторном прогоне
 test.describe.configure({ retries: 0 });
 
-test('Форма "Написать отзыв" — отправка фото PNG вертикального (960×1440): фото загружается, отзыв публикуется и отображается на странице', async ({ page }) => {
+test('Форма "Написать отзыв" — отправка фото PNG вертикального (960×1440): фото загружается, отзыв публикуется и отображается на странице', async ({ page, context }) => {
   test.setTimeout(240000);
 
   let reviewSubmitted = false;
   let reviewPublished = false;
+
+  // Отдельная вкладка для админ-панели: делит куки/сессию логина с основной страницей
+  // (context общий), но у неё своя история навигации. Иначе «клик Акции → goBack()»
+  // при проверке на /otzyvy мог бы случайно вернуть не на публичную страницу, а в
+  // засорённую переходами внутри SPA-админки историю того же таба.
+  const adminPage = await context.newPage();
 
   try {
     // 1. Открываем форму
@@ -103,12 +109,12 @@ test('Форма "Написать отзыв" — отправка фото PNG
     await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 15000 });
     console.log('[test] ✓ Отзыв с фото PNG (вертикальное) отправлен');
 
-    // 8. Проверяем в панели администратора
-    await checkReviewInAdmin(page, REVIEW_SNIPPET);
+    // 8. Проверяем в панели администратора (в отдельной вкладке)
+    await checkReviewInAdmin(adminPage, REVIEW_SNIPPET);
     console.log('[test] ✓ Отзыв найден в панели администратора');
 
     // 9. Публикуем
-    await publishReviewInAdmin(page, REVIEW_SNIPPET);
+    await publishReviewInAdmin(adminPage, REVIEW_SNIPPET);
     reviewPublished = true;
     console.log('[test] ✓ Отзыв опубликован');
 
@@ -138,15 +144,15 @@ test('Форма "Написать отзыв" — отправка фото PNG
     if (reviewSubmitted) {
       try {
         if (reviewPublished) {
-          const actuallyPublished = await isReviewPublishedInAdmin(page, REVIEW_SNIPPET);
-          await deleteReviewInAdmin(page, REVIEW_SNIPPET);
+          const actuallyPublished = await isReviewPublishedInAdmin(adminPage, REVIEW_SNIPPET);
+          await deleteReviewInAdmin(adminPage, REVIEW_SNIPPET);
           if (actuallyPublished) {
             console.log('[test] ✓ Тестовый отзыв удалён');
           } else {
             console.warn('\n⚠️  Удалён, но НЕОПУБЛИКОВАН.\n   Тогл публикации в админке был выключен — публикация не сработала.\n');
           }
         } else {
-          await deleteReviewInAdmin(page, REVIEW_SNIPPET);
+          await deleteReviewInAdmin(adminPage, REVIEW_SNIPPET);
           console.warn('\n⚠️  Удалён, до ПУБЛИКАЦИИ.\n   Тест упал раньше шага публикации.\n');
         }
       } catch (e) {
@@ -158,5 +164,6 @@ test('Форма "Написать отзыв" — отправка фото PNG
         );
       }
     }
+    await adminPage.close();
   }
 });
