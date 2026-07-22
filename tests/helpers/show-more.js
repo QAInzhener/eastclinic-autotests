@@ -50,21 +50,22 @@ export async function checkShowMore(page, url, label) {
     count = await page.evaluate(() => document.querySelectorAll('.doctor-info-container').length);
     let added = count - prev;
 
-    if (added === 0) {
-      // Даём странице ещё один шанс — AJAX-запрос мог не успеть ответить за 10с
-      // из-за разовой задержки сети, а не из-за реальной поломки кнопки.
+    // Даём странице ещё до 2 попыток — AJAX-запрос мог не успеть ответить за 10с
+    // из-за разовой задержки сети, а не из-за реальной поломки кнопки. Один повтор
+    // оказался недостаточен на страницах с большим числом врачей — увеличено до двух.
+    for (let retry = 0; added === 0 && retry < 2; retry++) {
       const stillVisible = await btn.isVisible({ timeout: 1000 }).catch(() => false);
       const stillEnabled = stillVisible && await btn.isEnabled({ timeout: 1000 }).catch(() => false);
-      if (stillVisible && stillEnabled) {
-        await btn.click({ timeout: 15000 });
-        await page.waitForFunction(
-          (n) => document.querySelectorAll('.doctor-info-container').length > n,
-          prev,
-          { timeout: 10000 }
-        ).catch(() => {});
-        count = await page.evaluate(() => document.querySelectorAll('.doctor-info-container').length);
-        added = count - prev;
-      }
+      if (!stillVisible || !stillEnabled) break;
+
+      await btn.click({ timeout: 15000 });
+      await page.waitForFunction(
+        (n) => document.querySelectorAll('.doctor-info-container').length > n,
+        prev,
+        { timeout: 12000 }
+      ).catch(() => {});
+      count = await page.evaluate(() => document.querySelectorAll('.doctor-info-container').length);
+      added = count - prev;
     }
 
     if (added === 0) {
