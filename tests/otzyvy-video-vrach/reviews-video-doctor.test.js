@@ -32,7 +32,10 @@ async function openDoctorReviewForm(page) {
 
   const crachedVrachi    = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
   const maintenanceVrachi = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
-  test.skip(crachedVrachi || maintenanceVrachi, 'страница /vrachi недоступна (сайт на обслуживании)');
+  // «Сайт скоро вернётся» — это не плановое обслуживание, а экран краша приложения (ошибка 500).
+  // Тест должен явно падать с этим диагнозом, а не тихо пропускаться.
+  if (maintenanceVrachi) throw new Error('ОШИБКА 500: сайт упал — страница /vrachi показывает экран "Сайт скоро вернётся"');
+  if (crachedVrachi) throw new Error('Приложение недоступно — страница /vrachi показывает экран ошибки "Что-то пошло не так"');
 
   const countBefore = await page.evaluate(() =>
     document.querySelectorAll('.doctor-info-container').length
@@ -59,7 +62,10 @@ async function openDoctorReviewForm(page) {
 
   const crashed     = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
   const maintenance = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
-  test.skip(crashed || maintenance, 'страница врача недоступна (сайт на обслуживании)');
+  // «Сайт скоро вернётся» — это не плановое обслуживание, а экран краша приложения (ошибка 500).
+  // Тест должен явно падать с этим диагнозом, а не тихо пропускаться.
+  if (maintenance) throw new Error('ОШИБКА 500: сайт упал — страница врача показывает экран "Сайт скоро вернётся"');
+  if (crashed) throw new Error('Приложение недоступно — страница врача показывает экран ошибки "Что-то пошло не так"');
   const reviewBtn = page.locator('button.total-reviews-button');
   await reviewBtn.waitFor({ state: 'visible', timeout: 8000 });
   await reviewBtn.scrollIntoViewIfNeeded();

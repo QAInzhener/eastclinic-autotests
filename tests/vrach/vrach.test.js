@@ -7,7 +7,10 @@ async function gotoDoctor25(page) {
 
   const crashed     = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
   const maintenance = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
-  test.skip(crashed || maintenance, 'страница недоступна (сайт на обслуживании)');
+  // «Сайт скоро вернётся» — это не плановое обслуживание, а экран краша приложения (ошибка 500).
+  // Тест должен явно падать с этим диагнозом, а не тихо пропускаться.
+  if (maintenance) throw new Error('ОШИБКА 500: сайт упал — страница /vrachi показывает экран "Сайт скоро вернётся"');
+  if (crashed) throw new Error('Приложение недоступно — страница /vrachi показывает экран ошибки "Что-то пошло не так"');
 
   let count = await page.evaluate(() => document.querySelectorAll('.doctor-info-container').length);
   while (count < 25) {
