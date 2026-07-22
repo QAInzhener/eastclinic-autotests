@@ -74,12 +74,19 @@ test.describe.configure({ retries: 0 });
 
 // ──────────────────────────────────────────────────────────────────────────────
 
-test('Форма отзыва с личной страницы врача — отправка с видео (1:59): видео загружается, отзыв публикуется и отображается в видео-галерее', async ({ page }) => {
+test('Форма отзыва с личной страницы врача — отправка с видео (1:59): видео загружается, отзыв публикуется и отображается в видео-галерее', async ({ page, context }) => {
   test.setTimeout(420000);
 
   let reviewSubmitted = false;
   let reviewPublished = false;
   let doctorName = null;
+
+  // Отдельная вкладка для работы в админ-панели: она делит куки/сессию логина с основной
+  // страницей (context общий), но у неё своя история навигации. Если бы админка работала
+  // в том же page, что и публичные проверки (шаги 14 и 17), «клик Акции → goBack()» мог бы
+  // случайно вернуть не на публичную страницу, а в засорённую навигациями внутри SPA-админки
+  // историю того же таба.
+  const adminPage = await context.newPage();
 
   try {
     // 1. Открываем список врачей
@@ -167,15 +174,18 @@ test('Форма отзыва с личной страницы врача — о
     // 11. Отправляем
     await form.locator('button.send-review-button').click();
     reviewSubmitted = true;
-    await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 15000 });
+    // Кнопка отправки становится активной уже после локальной обработки превью, но сама отправка
+    // с прикреплённым видео (сервер повторно валидирует/обрабатывает файл) может занимать
+    // заметно дольше, чем у текстовых отзывов — 15с оказалось недостаточно.
+    await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 60000 });
     console.log('[test] ✓ Отзыв с видео отправлен');
 
-    // 12. Проверяем в панели администратора
-    await checkReviewInAdminWithDoctor(page, REVIEW_SNIPPET, doctorName);
+    // 12. Проверяем в панели администратора (в отдельной вкладке)
+    await checkReviewInAdminWithDoctor(adminPage, REVIEW_SNIPPET, doctorName);
     console.log('[test] ✓ Отзыв найден в панели администратора');
 
     // 13. Публикуем
-    await publishReviewInAdmin(page, REVIEW_SNIPPET, doctorName);
+    await publishReviewInAdmin(adminPage, REVIEW_SNIPPET, doctorName);
     reviewPublished = true;
     console.log('[test] ✓ Отзыв опубликован');
 
@@ -269,8 +279,8 @@ test('Форма отзыва с личной страницы врача — о
     if (reviewSubmitted) {
       try {
         if (reviewPublished) {
-          const actuallyPublished = await isReviewPublishedInAdmin(page, REVIEW_SNIPPET, doctorName);
-          await deleteReviewInAdmin(page, REVIEW_SNIPPET, doctorName);
+          const actuallyPublished = await isReviewPublishedInAdmin(adminPage, REVIEW_SNIPPET, doctorName);
+          await deleteReviewInAdmin(adminPage, REVIEW_SNIPPET, doctorName);
           if (actuallyPublished) {
             console.log('[test] ✓ Тестовый отзыв удалён');
           } else {
@@ -280,7 +290,7 @@ test('Форма отзыва с личной страницы врача — о
             );
           }
         } else {
-          await deleteReviewInAdmin(page, REVIEW_SNIPPET, doctorName);
+          await deleteReviewInAdmin(adminPage, REVIEW_SNIPPET, doctorName);
           console.warn(
             '\n⚠️  Удалён, до ПУБЛИКАЦИИ.\n' +
             '   Тест упал раньше шага публикации.\n'
@@ -295,6 +305,7 @@ test('Форма отзыва с личной страницы врача — о
         );
       }
     }
+    await adminPage.close();
   }
 });
 
