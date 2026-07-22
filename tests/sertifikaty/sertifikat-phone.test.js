@@ -77,13 +77,20 @@ test('Сертификат (вариант 1) — оформление по но
   await submitBtn.scrollIntoViewIfNeeded();
   await submitBtn.click();
 
-  // 10. Ждём индикатора успеха — кнопка пропадает или появляется текст подтверждения
-  await expect(
-    page.locator('text=/спасибо|заявка|оформлен|принята|успешно/i')
-  ).toBeVisible({ timeout: 10000 }).catch(async () => {
-    // Если явного сообщения нет — проверяем, что кнопка исчезла
-    await expect(submitBtn).not.toBeVisible({ timeout: 5000 });
-  });
+  // 10. Ждём индикатора успеха — текст подтверждения или исчезновение кнопки.
+  // Если ни то ни другое не появилось — проверяем, не показала ли форма явную ошибку
+  // (тогда это баг сайта, а не флейк таймаута), и только потом фейлим тест.
+  const successVisible = await page.locator('text=/спасибо|заявка|оформлен|принята|успешно/i')
+    .isVisible({ timeout: 15000 }).catch(() => false);
+
+  if (!successVisible) {
+    const errorText = await page.locator('text=/ошибка|не удалось|попробуйте поз(же|дн)/i').first()
+      .textContent({ timeout: 2000 }).catch(() => null);
+    if (errorText) {
+      throw new Error(`Форма сертификата показала ошибку вместо подтверждения: "${errorText.trim()}"`);
+    }
+    await expect(submitBtn).not.toBeVisible({ timeout: 10000 });
+  }
 
   // 11. Проверяем прибытие письма на почту (только для prod)
   if (BASE_URL === 'https://eastclinic.ru') {
