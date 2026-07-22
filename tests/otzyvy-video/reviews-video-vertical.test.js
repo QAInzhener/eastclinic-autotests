@@ -110,7 +110,10 @@ test('Форма "Написать отзыв" — отправка вертик
     // 7. Отправляем
     await form.locator('button.send-review-button').click();
     reviewSubmitted = true;
-    await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 15000 });
+    // Кнопка отправки становится активной уже после локальной обработки превью, но сама отправка
+    // с прикреплённым видео (сервер повторно валидирует/обрабатывает файл) может занимать
+    // заметно дольше, чем у текстовых отзывов — 15с оказалось недостаточно.
+    await expect(page.locator('.reviews-form-container')).not.toBeVisible({ timeout: 60000 });
     console.log('[test] ✓ Отзыв с вертикальным видео отправлен');
 
     // 8. Проверяем в панели администратора
