@@ -57,15 +57,20 @@ async function openDoctorReviewForm(page) {
   if (!doctorHref) throw new Error('Не найдена карточка врача после «Показать еще»');
 
   await page.goto(doctorHref, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  const doctorName = (await page.locator('h1').first().textContent()).trim();
-  console.log('[test] Врач:', doctorName);
 
+  // Проверяем краш/техобслуживание СРАЗУ после перехода, до чтения h1 — если страница
+  // врача не отрендерилась, h1 просто не появится, и без этой проверки тест 30с ждал бы
+  // несуществующий заголовок и падал невнятным TimeoutError вместо явного диагноза.
   const crashed     = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
   const maintenance = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
   // «Сайт скоро вернётся» — это не плановое обслуживание, а экран краша приложения (ошибка 500).
   // Тест должен явно падать с этим диагнозом, а не тихо пропускаться.
   if (maintenance) throw new Error('ОШИБКА 500: сайт упал — страница врача показывает экран "Сайт скоро вернётся"');
   if (crashed) throw new Error('Приложение недоступно — страница врача показывает экран ошибки "Что-то пошло не так"');
+
+  const doctorName = (await page.locator('h1').first().textContent()).trim();
+  console.log('[test] Врач:', doctorName);
+
   const reviewBtn = page.locator('button.total-reviews-button');
   await reviewBtn.waitFor({ state: 'visible', timeout: 8000 });
   await reviewBtn.scrollIntoViewIfNeeded();
@@ -128,6 +133,14 @@ test('Форма отзыва с личной страницы врача — о
 
     // 5. Переходим на личную страницу врача
     await page.goto(doctorHref, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+    // Проверяем краш/техобслуживание сразу после перехода, до чтения h1 — иначе при
+    // неотрендерившейся странице тест 30с ждёт несуществующий заголовок и падает
+    // невнятным TimeoutError вместо явного диагноза.
+    const crashedDoctor     = await page.locator('text=Что-то пошло не так').isVisible({ timeout: 1000 }).catch(() => false);
+    const maintenanceDoctor = await page.locator('text=Сайт скоро вернётся').isVisible({ timeout: 1000 }).catch(() => false);
+    if (maintenanceDoctor) throw new Error('ОШИБКА 500: сайт упал — страница врача показывает экран "Сайт скоро вернётся"');
+    if (crashedDoctor) throw new Error('Приложение недоступно — страница врача показывает экран ошибки "Что-то пошло не так"');
 
     // 6. Читаем ФИО врача — нужно для поиска строки в таблице администратора
     doctorName = (await page.locator('h1').first().textContent()).trim();
