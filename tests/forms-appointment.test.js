@@ -8,6 +8,9 @@ const TEST_PHONE = '4444444444'; // +7 (444) 444-44-44
 // DOCTOR_PAGE заменён на динамический выбор 7-го врача — см. getNthDoctorUrl
 const SPECIALTY_PAGE = BASE_URL + '/vrachi/osteopat';
 const ONLY_ONLINE_URL = BASE_URL + '/vrach/prokopovich-elena-evgenevna';
+// Резервный врач с только-онлайн оплатой — используется, если у Прокопович
+// в моменте не хватает доступных слотов для проверки смены времени.
+const SIRMAIS_URL = BASE_URL + '/vrach/sirmajs-nataliya-sergeevna';
 const MRT_URL = BASE_URL + '/uslugi/mrt';
 const PROCEDURE_URL = BASE_URL + '/uslugi/proczedurnyj-kabinet';
 
@@ -221,7 +224,9 @@ async function selectServiceAndGoToBooking(page) {
 
 // Кликает "Дата и время", переходит к следующему доступному дню через шеврон →,
 // кликает последний слот. Возвращает { timeBlock, initialTime }.
-async function changeToNextAvailableSlot(page) {
+// allowSkip: false — вместо test.skip() при нехватке слотов/дней возвращает null,
+// чтобы вызывающий код мог попробовать другого врача, а не пропускать тест сразу.
+async function changeToNextAvailableSlot(page, { allowSkip = true } = {}) {
   const timeBlock = page.locator('.booking__dialog__item.pointer').filter({ hasText: /дата и время/i });
   await timeBlock.waitFor({ state: 'visible', timeout: 8000 });
   const initialTime = await timeBlock.innerText();
@@ -276,7 +281,10 @@ async function changeToNextAvailableSlot(page) {
     return true;
   }, pickerY);
 
-  test.skip(!chevronMarked, 'Не найден шеврон → в пикере времени — пропускаем');
+  if (!chevronMarked) {
+    if (allowSkip) test.skip(true, 'Не найден шеврон → в пикере времени — пропускаем');
+    return null;
+  }
   await page.locator('[data-e2e-chevron="1"]').click({ force: true, timeout: 5000 });
   // Карусель анимирует переход к следующей неделе — ждём с запасом, раньше 1с иногда
   // не хватало, и следующий клик по дню попадал по элементу ещё в процессе анимации.
@@ -310,7 +318,10 @@ async function changeToNextAvailableSlot(page) {
   }, pickerY);
 
   let dayCount = await markAvailableDays();
-  test.skip(dayCount === 0, 'Нет доступных дней после → в пикере — пропускаем');
+  if (dayCount === 0) {
+    if (allowSkip) test.skip(true, 'Нет доступных дней после → в пикере — пропускаем');
+    return null;
+  }
 
   // Ищем первый день с >= 3 слотами; если таких нет — остаёмся на последнем доступном дне.
   // Перед каждым кликом помечаем дни заново — Vue может перерисовать DOM после предыдущего
@@ -325,7 +336,10 @@ async function changeToNextAvailableSlot(page) {
     if (currentSlots.length >= 3 || i === dayCount - 1) break;
   }
 
-  test.skip(currentSlots.length < 1, 'Нет слотов для смены времени — пропускаем');
+  if (currentSlots.length < 1) {
+    if (allowSkip) test.skip(true, 'Нет слотов для смены времени — пропускаем');
+    return null;
+  }
 
   const slotMarked = await page.evaluate(() => {
     document.querySelectorAll('[data-e2e-slot]').forEach(el => el.removeAttribute('data-e2e-slot'));
@@ -604,8 +618,31 @@ test('Запись на приём (только онлайн, услуга + с
   test.skip(payCount !== 1, 'Ожидается только онлайн-оплата — пропускаем');
   await expect(page.locator('.remote-payment-item').first()).toContainText(/Оплата онлайн/i);
 
-  // 7–11. Открываем пикер, переходим к следующему доступному дню, кликаем последний слот
-  const { timeBlock, initialTime } = await changeToNextAvailableSlot(page);
+  // 7–11. Открываем пикер, переходим к следующему доступному дню, кликаем последний слот.
+  // У Прокопович регулярно не хватает доступных слотов для смены времени (её расписание
+  // заполнено плотнее других) — вместо пропуска теста пробуем второго врача с такой же
+  // только-онлайн оплатой (Сирмайс), не теряя саму проверку смены времени.
+  let slotChange = await changeToNextAvailableSlot(page, { allowSkip: false });
+
+  if (!slotChange) {
+    console.log('[test] У Прокопович не хватило слотов для смены времени — пробуем Сирмайс');
+    await page.goto(SIRMAIS_URL);
+    await acceptCookies(page);
+    await selectServiceAndGoToBooking(page);
+
+    const modalTextSirmais = await getBookingModalText(page);
+    expect(modalTextSirmais).toContain('Услуга');
+
+    const payCountSirmais = await page.locator('.remote-payment-item').count();
+    test.skip(payCountSirmais !== 1, 'У Сирмайс тоже нет только-онлайн оплаты — пропускаем');
+    await expect(page.locator('.remote-payment-item').first()).toContainText(/Оплата онлайн/i);
+
+    // Здесь allowSkip уже по умолчанию true — если и у второго врача нет слотов,
+    // тест пропускается по-настоящему, с понятной причиной.
+    slotChange = await changeToNextAvailableSlot(page);
+  }
+
+  const { timeBlock, initialTime } = slotChange;
 
   // 12. Проверяем что время изменилось и Услуга сохранилась
   const updatedTime = await timeBlock.innerText();
