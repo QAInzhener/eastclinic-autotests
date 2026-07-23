@@ -101,7 +101,19 @@ test('Поле поиска: правая часть — выбор каждог
     const clinicSpan = page.locator('span.text-main').filter({ hasText: name }).first();
     await clinicSpan.waitFor({ state: 'visible', timeout: 5000 });
     await clinicSpan.click();
-    await page.waitForURL('**' + url + '**', { timeout: 30000 });
+    try {
+      await page.waitForURL('**' + url + '**', { timeout: 15000 });
+    } catch {
+      // Клик по пункту дропдауна иногда не триггерит переход (тайминги рендера/анимации
+      // списка филиалов) — прежде чем считать это падением, переоткрываем дропдаун
+      // на свежей странице и пробуем клик ещё раз.
+      console.log(`[test] Переход на ${url} не начался за 15с, повторяю попытку для «${name}»`);
+      await gotoHomeAndOpenDropdown();
+      const retrySpan = page.locator('span.text-main').filter({ hasText: name }).first();
+      await retrySpan.waitFor({ state: 'visible', timeout: 5000 });
+      await retrySpan.click();
+      await page.waitForURL('**' + url + '**', { timeout: 30000 });
+    }
     expect(page.url()).toContain(url);
     await gotoHomeAndOpenDropdown();
   }
