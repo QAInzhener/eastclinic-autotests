@@ -72,19 +72,26 @@ async function uploadOnePhoto(page, form, photoPath, expectedPreviewCount) {
   ]);
   await fileChooser.setFiles(photoPath);
 
-  // Ждём появления N-го превью
-  await page.waitForFunction(
+  // Ждём появления N-го превью. Раньше признак ошибки (-1/-2) вычислялся, но
+  // результат waitForFunction нигде не проверялся — при реальной ошибке загрузки
+  // тест просто ждал все 30с и падал невнятным таймаутом вместо явной причины.
+  const result = await page.waitForFunction(
     (n) => {
       const f = document.querySelector('.reviews-form-container');
       if (!f) return false;
       const errText = f.innerText.toLowerCase();
       if (errText.includes('не поддерживается') || errText.includes('не принят')) return -1;
+      if (errText.includes('что-то пошло не так') || errText.includes('попробуйте ещё позже')) return -2;
       const imgs = f.querySelectorAll('img[src]:not([src=""])');
       return imgs.length >= n ? imgs.length : false;
     },
     expectedPreviewCount,
     { timeout: 30000 }
   ).then(h => h.jsonValue());
+
+  if (result === -1) throw new Error(`Форма отклонила файл (не поддерживается/не принят): ${photoPath}`);
+  if (result === -2) throw new Error(`Загрузка фото завершилась ошибкой сервера ("Что-то пошло не так, попробуйте ещё позже"): ${photoPath}`);
+  return result;
 }
 
 test.describe.configure({ retries: 0 });

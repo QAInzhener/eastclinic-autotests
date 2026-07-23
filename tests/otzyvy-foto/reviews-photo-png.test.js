@@ -76,7 +76,7 @@ test('Форма "Написать отзыв" — отправка фото PNG
         const f = document.querySelector('.reviews-form-container');
         if (!f) return false;
         const errText = f.innerText.toLowerCase();
-        if (errText.includes('ошибка') || errText.includes('не поддерживается') || errText.includes('не принят')) return 'error';
+        if (errText.includes('ошибка') || errText.includes('не поддерживается') || errText.includes('не принят') || errText.includes('что-то пошло не так') || errText.includes('попробуйте ещё позже')) return 'error';
         if (f.querySelector('img[src]:not([src=""]), [class*="preview"], [class*="uploaded"], [class*="photo-thumb"]')) return 'ok';
         const progress = f.querySelector('[class*="progress"], [class*="loading"], [class*="uploading"]');
         return !progress ? 'no-progress' : false;

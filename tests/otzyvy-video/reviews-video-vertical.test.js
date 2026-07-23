@@ -79,7 +79,9 @@ test('Форма "Написать отзыв" — отправка вертик
         if (
           errText.includes('ошибка') ||
           errText.includes('не поддерживается') ||
-          errText.includes('не принят')
+          errText.includes('не принят') ||
+          errText.includes('что-то пошло не так') ||
+          errText.includes('попробуйте ещё позже')
         ) return 'error';
         if (f.querySelector('video, [class*="preview"], [class*="uploaded"], [class*="video-thumb"]')) return 'ok';
         const progress = f.querySelector('[class*="progress"], [class*="loading"], [class*="uploading"]');
