@@ -1,5 +1,7 @@
 node_modules/
 test-results/
+test-results-adhoc/
 playwright-report/
+playwright-report-adhoc/
 results/
 .env

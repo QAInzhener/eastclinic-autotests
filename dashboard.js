@@ -296,10 +296,13 @@ function runTests(file = '', grep = '', line = 0, env = 'prod') {
     }
   }
 
+  // Точечный прогон (конкретный файл/тест) не должен стирать test-results/
+  // и playwright-report/ ночного cron-прогона — см. playwright.config.js.
+  const isAdhoc = Boolean(file || grep);
   const proc = spawn('npx', args, {
     cwd: ROOT,
     shell: true,
-    env: { ...process.env, TEST_BASE_URL: baseUrl },
+    env: { ...process.env, TEST_BASE_URL: baseUrl, ...(isAdhoc ? { DASHBOARD_ADHOC_RUN: '1' } : {}) },
   });
   currentProc = proc;
 
