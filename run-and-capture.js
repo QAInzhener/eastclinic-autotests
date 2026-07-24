@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import http from 'http';
@@ -41,6 +41,67 @@ function queueLog(text) {
   if (!logFlushTimer) logFlushTimer = setTimeout(flushLogBuffer, 250);
 }
 
+// ---- Уведомления в Delta Chat о НОВЫХ падениях (не о всех подряд) ----
+
+const FAILED_STATUSES = new Set(['failed', 'timedOut', 'interrupted']);
+
+function specStatus(spec) {
+  if (!spec.tests || !spec.tests.length) return 'unknown';
+  const r = spec.tests[0].results;
+  if (!r || !r.length) return 'unknown';
+  return r[r.length - 1].status || 'unknown';
+}
+
+function walkSpecs(suite, cb) {
+  if (suite.specs) suite.specs.forEach(cb);
+  if (suite.suites) suite.suites.forEach(s => walkSpecs(s, cb));
+}
+
+// Ключ по file+title, а не только title — одинаковые названия тестов
+// встречаются в разных файлах (например «модалка открывается»).
+function buildStatusMap(suites) {
+  const map = new Map();
+  (suites || []).forEach(suite => walkSpecs(suite, spec => {
+    map.set(`${suite.file}::${spec.title}`, specStatus(spec));
+  }));
+  return map;
+}
+
+// Сравнивает статусы ДО и ПОСЛЕ этого прогона — уведомляем только про тесты,
+// которые упали именно сейчас, а не про уже давно и стабильно падающие.
+function findNewlyFailed(oldSuites, freshSuites) {
+  const oldStatus = buildStatusMap(oldSuites);
+  const newlyFailed = [];
+  (freshSuites || []).forEach(suite => walkSpecs(suite, spec => {
+    const status = specStatus(spec);
+    if (!FAILED_STATUSES.has(status)) return;
+    const prev = oldStatus.get(`${suite.file}::${spec.title}`);
+    if (!FAILED_STATUSES.has(prev)) newlyFailed.push({ file: suite.file, title: spec.title });
+  }));
+  return newlyFailed;
+}
+
+function sendFailureNotification(newlyFailed) {
+  const MAX_LIST = 15;
+  const when = new Date().toLocaleString('ru-RU');
+  const lines = newlyFailed.slice(0, MAX_LIST).map(f => `• ${f.title}`);
+  if (newlyFailed.length > MAX_LIST) lines.push(`… и ещё ${newlyFailed.length - MAX_LIST}`);
+  const text =
+    `🔴 Новые падения тестов — ${label}\n${when}\n\n` +
+    lines.join('\n') +
+    `\n\nВсего новых падений: ${newlyFailed.length}`;
+
+  const result = spawnSync('node', ['notify-bot/send.js', 'tests', text], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    console.error('Не удалось отправить уведомление в Delta Chat:', result.stderr || result.error);
+  } else {
+    console.log('Уведомление о новых падениях отправлено в Delta Chat.');
+  }
+}
+
 notifyDashboard('/api/internal/start', { env, label });
 
 const proc = spawn('npx', ['playwright', 'test', '--retries=1'], {
@@ -63,6 +124,14 @@ proc.on('close', code => {
   try {
     const fresh = JSON.parse(readFileSync('results/last-run.json', 'utf8'));
     const existing = existsSync(resultsFile) ? JSON.parse(readFileSync(resultsFile, 'utf8')) : null;
+
+    // Сравниваем статусы ДО слияния (existing) и в этом прогоне (fresh) —
+    // после слияния существующие/новые записи было бы уже не различить.
+    const newlyFailed = findNewlyFailed(existing?.suites, fresh.suites);
+    if (newlyFailed.length > 0) {
+      sendFailureNotification(newlyFailed);
+    }
+
     if (!existing || !existing.suites) {
       writeFileSync(resultsFile, JSON.stringify(fresh, null, 2));
     } else {

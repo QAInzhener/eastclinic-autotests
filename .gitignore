@@ -5,3 +5,4 @@ playwright-report/
 playwright-report-adhoc/
 results/
 .env
+notify-bot/deltachat-data/

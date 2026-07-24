@@ -14,6 +14,8 @@
     "sharp": "^0.35.3"
   },
   "dependencies": {
+    "@deltachat/jsonrpc-client": "^2.56.0",
+    "@deltachat/stdio-rpc-server": "^2.56.0",
     "dotenv": "^17.4.2",
     "imapflow": "^1.3.7",
     "undici": "^7.27.2"
